@@ -1,0 +1,263 @@
+package com.studyflow.ypt.ui.main
+
+import com.studyflow.ypt.data.AppTheme
+import com.studyflow.ypt.data.DefaultDataRepository
+import com.studyflow.ypt.data.PomodoroPhase
+import com.studyflow.ypt.data.TimerMode
+import junit.framework.TestCase.assertEquals
+import junit.framework.TestCase.assertFalse
+import junit.framework.TestCase.assertNotNull
+import junit.framework.TestCase.assertTrue
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import org.junit.Test
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class MainScreenViewModelTest {
+
+  @Test(timeout = 10_000L)
+  fun initialState_loadsDefaultSubjectsAndDarkYptTheme() = runTest {
+    val repository = DefaultDataRepository(context = null)
+    val viewModel = MainScreenViewModel(repository, coroutineScope = backgroundScope)
+    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.yptState.collect {} }
+    runCurrent()
+
+    val state = viewModel.yptState.value
+    assertEquals(4, state.subjects.size)
+    assertEquals(AppTheme.DARK_YPT, state.selectedTheme)
+    assertEquals(TimerMode.STOPWATCH, state.timerMode)
+    assertFalse(state.activeTimer.isRunning)
+  }
+
+  @Test(timeout = 10_000L)
+  fun addAndDeleteSubject_updatesSubjectsList() = runTest {
+    val repository = DefaultDataRepository(context = null)
+    val viewModel = MainScreenViewModel(repository, coroutineScope = backgroundScope)
+    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.yptState.collect {} }
+    runCurrent()
+
+    viewModel.addSubject("Cálculo Vectorial", 0xFF3B82F6, 90)
+    runCurrent()
+
+    val afterAdd = viewModel.yptState.value
+    assertEquals(5, afterAdd.subjects.size)
+    val added = afterAdd.subjects.find { it.name == "Cálculo Vectorial" }
+    assertNotNull(added)
+    assertEquals(90, added?.targetMinutesPerDay)
+
+    viewModel.deleteSubject(added!!.id)
+    runCurrent()
+    assertEquals(4, viewModel.yptState.value.subjects.size)
+  }
+
+  @Test(timeout = 10_000L)
+  fun updateSubject_modifiesAllSubjectAspects() = runTest {
+    val repository = DefaultDataRepository(context = null)
+    val viewModel = MainScreenViewModel(repository, coroutineScope = backgroundScope)
+    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.yptState.collect {} }
+    runCurrent()
+
+    val targetSubject = viewModel.yptState.value.subjects.first()
+    val subjectId = targetSubject.id
+    val newName = "Arquitectura de Software Limpia"
+    val newColor = 0xFFEC4899 // Rosa
+    val newTargetMinutes = 180
+
+    viewModel.updateSubject(
+      subjectId = subjectId,
+      name = newName,
+      colorHex = newColor,
+      targetMinutesPerDay = newTargetMinutes,
+    )
+    runCurrent()
+
+    val updatedState = viewModel.yptState.value
+    val updatedSubject = updatedState.subjects.find { it.id == subjectId }
+    assertNotNull(updatedSubject)
+    assertEquals(newName, updatedSubject?.name)
+    assertEquals(newColor, updatedSubject?.colorHex)
+    assertEquals(newTargetMinutes, updatedSubject?.targetMinutesPerDay)
+  }
+
+  @Test(timeout = 10_000L)
+  fun updateSubject_withBlankName_ignoresUpdate() = runTest {
+    val repository = DefaultDataRepository(context = null)
+    val viewModel = MainScreenViewModel(repository, coroutineScope = backgroundScope)
+    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.yptState.collect {} }
+    runCurrent()
+
+    val targetSubject = viewModel.yptState.value.subjects.first()
+    val subjectId = targetSubject.id
+    val originalName = targetSubject.name
+
+    viewModel.updateSubject(
+      subjectId = subjectId,
+      name = "   ",
+      colorHex = 0xFF123456,
+      targetMinutesPerDay = 120,
+    )
+    runCurrent()
+
+    val updatedSubject = viewModel.yptState.value.subjects.find { it.id == subjectId }
+    assertEquals(originalName, updatedSubject?.name)
+  }
+
+  @Test(timeout = 10_000L)
+  fun stopwatchTimer_startsCountsUpAndRecordsSessionOnStop() = runTest {
+    val baseTime = 1_700_000_000_000L
+    val repository = DefaultDataRepository(context = null)
+    val viewModel =
+      MainScreenViewModel(
+        repository,
+        currentTimeProvider = { baseTime + testScheduler.currentTime },
+        coroutineScope = backgroundScope,
+      )
+    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.yptState.collect {} }
+    runCurrent()
+
+    val subjectId = viewModel.yptState.value.subjects.first().id
+
+    // Iniciar cronómetro
+    viewModel.toggleSubjectTimer(subjectId)
+    runCurrent()
+    assertTrue(viewModel.yptState.value.activeTimer.isRunning)
+    assertEquals(subjectId, viewModel.yptState.value.activeTimer.subjectId)
+
+    // Avanzar 10 segundos
+    advanceTimeBy(10_000L)
+    runCurrent()
+
+    assertEquals(10L, viewModel.yptState.value.activeTimer.elapsedSeconds)
+    assertEquals(10L, viewModel.yptState.value.totalSecondsToday)
+
+    // Pausar / detener cronómetro y verificar que se guarda la sesión
+    viewModel.toggleSubjectTimer(subjectId)
+    runCurrent()
+
+    val stateAfterStop = viewModel.yptState.value
+    assertFalse(stateAfterStop.activeTimer.isRunning)
+    assertEquals(1, stateAfterStop.todaySessions.size)
+    assertEquals(10L, stateAfterStop.todaySessions.first().durationSeconds)
+    assertFalse(stateAfterStop.todaySessions.first().isPomodoro)
+    assertEquals(10L, stateAfterStop.totalSecondsToday)
+  }
+
+  @Test(timeout = 10_000L)
+  fun oledFocusMode_togglesOnlyWhenTimerIsRunning() = runTest {
+    val baseTime = 1_700_000_000_000L
+    val repository = DefaultDataRepository(context = null)
+    val viewModel =
+      MainScreenViewModel(
+        repository,
+        currentTimeProvider = { baseTime + testScheduler.currentTime },
+        coroutineScope = backgroundScope,
+      )
+    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.yptState.collect {} }
+    runCurrent()
+
+    // Si no está corriendo, no activa OLED
+    viewModel.setOledFocusMode(true)
+    assertFalse(viewModel.yptState.value.activeTimer.isOledFocusMode)
+
+    // Al iniciar una materia, permite activar y salir del modo OLED
+    val subjectId = viewModel.yptState.value.subjects.first().id
+    viewModel.toggleSubjectTimer(subjectId)
+    runCurrent()
+
+    viewModel.setOledFocusMode(true)
+    runCurrent()
+    assertTrue(viewModel.yptState.value.activeTimer.isOledFocusMode)
+
+    viewModel.setOledFocusMode(false)
+    runCurrent()
+    assertFalse(viewModel.yptState.value.activeTimer.isOledFocusMode)
+    viewModel.stopCurrentTimer()
+    runCurrent()
+  }
+
+  @Test(timeout = 10_000L)
+  fun themeSwitching_persistsAndProvidesDistinctPalettes() = runTest {
+    val repository = DefaultDataRepository(context = null)
+    val viewModel = MainScreenViewModel(repository, coroutineScope = backgroundScope)
+    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.yptState.collect {} }
+    runCurrent()
+
+    for (theme in AppTheme.entries) {
+      viewModel.setAppTheme(theme)
+      runCurrent()
+      assertEquals(theme, viewModel.yptState.value.selectedTheme)
+      val palette = paletteForTheme(theme)
+      assertNotNull(palette.bg)
+      assertNotNull(palette.accent)
+    }
+  }
+
+  @Test(timeout = 10_000L)
+  fun pomodoroMode_countsDownCompletesFocusAndTransitionsToBreak() = runTest {
+    val baseTime = 1_700_000_000_000L
+    val repository = DefaultDataRepository(context = null)
+    val viewModel =
+      MainScreenViewModel(
+        repository,
+        currentTimeProvider = { baseTime + testScheduler.currentTime },
+        coroutineScope = backgroundScope,
+      )
+    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.yptState.collect {} }
+    runCurrent()
+
+    // Cambiar a modo Pomodoro con configuración de 1 minuto enfoque / 1 minuto descanso
+    viewModel.setTimerMode(TimerMode.POMODORO)
+    viewModel.updatePomodoroConfig(focusMinutes = 1, shortBreakMinutes = 1, longBreakMinutes = 5)
+    runCurrent()
+
+    assertEquals(TimerMode.POMODORO, viewModel.yptState.value.timerMode)
+    assertEquals(60L, viewModel.yptState.value.activeTimer.pomodoroTargetSeconds)
+
+    val subjectId = viewModel.yptState.value.subjects.first().id
+    viewModel.toggleSubjectTimer(subjectId)
+    runCurrent()
+
+    // Avanzar 25 segundos del Pomodoro de 60s
+    advanceTimeBy(25_000L)
+    runCurrent()
+
+    assertEquals(35L, viewModel.yptState.value.activeTimer.remainingPomodoroSeconds)
+    assertEquals(25L, viewModel.yptState.value.totalSecondsToday)
+
+    // Avanzar los 35 segundos restantes para completar el Pomodoro
+    advanceTimeBy(35_000L)
+    runCurrent()
+
+    val afterFocus = viewModel.yptState.value
+    assertFalse(afterFocus.activeTimer.isRunning)
+    assertEquals(PomodoroPhase.SHORT_BREAK, afterFocus.activeTimer.pomodoroPhase)
+    assertEquals(1, afterFocus.completedPomodorosToday)
+    assertEquals(1, afterFocus.todaySessions.size)
+    assertTrue(afterFocus.todaySessions.first().isPomodoro)
+    assertEquals(60L, afterFocus.totalSecondsToday)
+
+    // Iniciar el descanso corto y luego saltarlo para volver a Enfoque
+    viewModel.togglePomodoroBreak()
+    runCurrent()
+    assertTrue(viewModel.yptState.value.activeTimer.isBreakRunning)
+
+    viewModel.skipPomodoroPhase()
+    runCurrent()
+    assertFalse(viewModel.yptState.value.activeTimer.isRunning)
+    assertEquals(PomodoroPhase.FOCUS, viewModel.yptState.value.activeTimer.pomodoroPhase)
+  }
+
+  @Test(timeout = 10_000L)
+  fun formatDurationHelpers_formatCorrectly() {
+    assertEquals("00:00:00", formatDurationHms(0L))
+    assertEquals("01:05:09", formatDurationHms(3909L))
+    assertEquals("25:00", formatDurationMmSs(1500L))
+    assertEquals("01:02:03", formatDurationMmSs(3723L))
+    assertEquals("45m", formatDurationShort(2700L))
+    assertEquals("2h 15m", formatDurationShort(8100L))
+  }
+}

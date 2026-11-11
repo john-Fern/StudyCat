@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Oreja izquierda exterior -->
+    <path
+        android:fillColor="#FFF5EB"
+        android:pathData="M31,48 L29,25 L47,36 Z" />
+    <!-- Oreja derecha exterior -->
+    <path
+        android:fillColor="#FFF5EB"
+        android:pathData="M77,48 L79,25 L61,36 Z" />
+
+    <!-- Oreja izquierda interior (rosada) -->
+    <path
+        android:fillColor="#FF8FA3"
+        android:pathData="M33,44 L32,29 L44,37 Z" />
+    <!-- Oreja derecha interior (rosada) -->
+    <path
+        android:fillColor="#FF8FA3"
+        android:pathData="M75,44 L76,29 L64,37 Z" />
+
+    <!-- Cabeza del gatito -->
+    <path
+        android:fillColor="#FFF5EB"
+        android:pathData="M54,33 C38,33 28,42 28,55 C28,67 38,75 54,75 C70,75 80,67 80,55 C80,42 70,33 54,33 Z" />
+
+    <!-- Manchas tiernas en la frente -->
+    <path
+        android:fillColor="#FFB4A2"
+        android:pathData="M54,34 L54,40"
+        android:strokeWidth="2.5"
+        android:strokeColor="#FFB4A2"
+        android:strokeLineCap="round" />
+    <path
+        android:fillColor="#FFB4A2"
+        android:pathData="M49,35 L50,39"
+        android:strokeWidth="2"
+        android:strokeColor="#FFB4A2"
+        android:strokeLineCap="round" />
+    <path
+        android:fillColor="#FFB4A2"
+        android:pathData="M59,35 L58,39"
+        android:strokeWidth="2"
+        android:strokeColor="#FFB4A2"
+        android:strokeLineCap="round" />
+
+    <!-- Mejillas sonrojadas -->
+    <path
+        android:fillColor="#66FF8FA3"
+        android:pathData="M36,58a4.5,3 0,1 0,9 0a4.5,3 0,1 0,-9 0" />
+    <path
+        android:fillColor="#66FF8FA3"
+        android:pathData="M63,58a4.5,3 0,1 0,9 0a4.5,3 0,1 0,-9 0" />
+
+    <!-- Ojo izquierdo -->
+    <path
+        android:fillColor="#1E1B2E"
+        android:pathData="M43,51m-4.2,0a4.2,4.2 0,1 1,8.4 0a4.2,4.2 0,1 1,-8.4 0" />
+    <!-- Brillo ojo izquierdo -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M41.6,49.5m-1.4,0a1.4,1.4 0,1 1,2.8 0a1.4,1.4 0,1 1,-2.8 0" />
+
+    <!-- Ojo derecho -->
+    <path
+        android:fillColor="#1E1B2E"
+        android:pathData="M65,51m-4.2,0a4.2,4.2 0,1 1,8.4 0a4.2,4.2 0,1 1,-8.4 0" />
+    <!-- Brillo ojo derecho -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M63.6,49.5m-1.4,0a1.4,1.4 0,1 1,2.8 0a1.4,1.4 0,1 1,-2.8 0" />
+
+    <!-- Gafas de estudio (Lente izquierdo, derecho y puente color Coral StudyCat) -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M43,51m-8.5,0a8.5,8.5 0,1 1,17 0a8.5,8.5 0,1 1,-17 0"
+        android:strokeWidth="2.4"
+        android:strokeColor="#FF6B4A" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M65,51m-8.5,0a8.5,8.5 0,1 1,17 0a8.5,8.5 0,1 1,-17 0"
+        android:strokeWidth="2.4"
+        android:strokeColor="#FF6B4A" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M51.5,51 Q54,48.5 56.5,51"
+        android:strokeWidth="2.4"
+        android:strokeColor="#FF6B4A"
+        android:strokeLineCap="round" />
+
+    <!-- Nariz rosada triangular -->
+    <path
+        android:fillColor="#FF758F"
+        android:pathData="M52,56.5 L56,56.5 L54,59 Z" />
+
+    <!-- Boquita de gato (:3) -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M54,59 Q51.5,62 49,60"
+        android:strokeWidth="1.8"
+        android:strokeColor="#1E1B2E"
+        android:strokeLineCap="round" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M54,59 Q56.5,62 59,60"
+        android:strokeWidth="1.8"
+        android:strokeColor="#1E1B2E"
+        android:strokeLineCap="round" />
+
+    <!-- Bigotes -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M26,53 L32,54.5 M26,58 L32,57.5 M82,53 L76,54.5 M82,58 L76,57.5"
+        android:strokeWidth="1.5"
+        android:strokeColor="#D4C5B9"
+        android:strokeLineCap="round" />
+
+    <!-- Libro abierto en la parte inferior -->
+    <path
+        android:fillColor="#FF6B4A"
+        android:pathData="M32,72 Q43,69 54,74 Q65,69 76,72 L76,82 Q65,79 54,84 Q43,79 32,82 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M34,70 Q44,67.5 54,72.5 Q64,67.5 74,70 L74,79 Q64,76.5 54,81.5 Q44,76.5 34,79 Z" />
+    <!-- Línea central del libro -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M54,72.5 L54,81.5"
+        android:strokeWidth="1.5"
+        android:strokeColor="#E2E8F0" />
+
+    <!-- Patitas del gatito sosteniendo el libro -->
+    <path
+        android:fillColor="#FFF5EB"
+        android:pathData="M41,72m-4.5,0a4.5,3.5 0,1 1,9 0a4.5,3.5 0,1 1,-9 0" />
+    <path
+        android:fillColor="#FFF5EB"
+        android:pathData="M67,72m-4.5,0a4.5,3.5 0,1 1,9 0a4.5,3.5 0,1 1,-9 0" />
+</vector>
