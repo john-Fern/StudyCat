@@ -38,10 +38,14 @@ Aplicación nativa de Android desarrollada en **Kotlin** y **Jetpack Compose** p
 
 ---
 
-## 📱 Instalación Rápida
+## 📱 Descarga e Instalación
 
-Puedes descargar el archivo APK compilado directamente desde la raíz del repositorio:
-- [Descargar StudyCat.apk](StudyCat.apk)
+Puedes descargar e instalar la aplicación en tu teléfono Android de dos formas:
+
+1. **Desde GitHub Releases (Recomendado):**
+   - Ve a la sección de [Releases de StudyCat](https://github.com/john-Fern/StudyCat/releases) y descarga el archivo `StudyCat.apk` de la última versión publicada.
+2. **Descarga Directa desde el Repositorio:**
+   - Puedes descargar el archivo listo para instalar directamente: [StudyCat.apk](StudyCat.apk)
 
 ---
 

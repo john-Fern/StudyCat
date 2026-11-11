@@ -1,0 +1,71 @@
+name: Build & Release APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Publish Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
+      - name: Run Unit Tests
+        run: ./gradlew testDebugUnitTest
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Prepare APK Artifact
+        run: |
+          mkdir -p release-artifacts
+          cp app/build/outputs/apk/debug/app-debug.apk release-artifacts/StudyCat.apk
+
+      - name: Upload APK to Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: StudyCat-APK
+          path: release-artifacts/StudyCat.apk
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          name: "StudyCat ${{ github.ref_name }}"
+          body: |
+            ## 🐱 StudyCat ${{ github.ref_name }}
+            
+            ¡Versión lista para instalar en Android!
+            
+            ### ✨ Funcionalidades incluidas
+            - ⏱️ **Cronómetro Progresivo**: Registro de tiempo de estudio por materia.
+            - 🍅 **Temporizador Pomodoro**: Fases de Enfoque, Descanso Corto y Descanso Largo.
+            - ✏️ **Edición de Materias**: Edita nombre, meta diaria y color distintivo en cualquier momento.
+            - 🖤 **Modo Pantalla Negra (OLED)**: Máximo ahorro de batería con fondo negro puro `#000000`.
+            - 📊 **Timeline de 10 Minutos**: Visualización estilo YPT dividida en 6 bloques por hora.
+            - 🎨 **5 Temas Visuales**: Noche YPT, Gatito Sakura, Papel Estudio, Medianoche y Bosque Matcha.
+            - 🔒 **100% Offline y Sin Anuncios**: Tu información se almacena localmente en tu dispositivo.
+            
+            ### 📲 Instalación
+            Descarga el archivo `StudyCat.apk` adjunto abajo e instálalo en tu teléfono.
+          files: release-artifacts/StudyCat.apk
+          draft: false
+          prerelease: false
