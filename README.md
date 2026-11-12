@@ -2,6 +2,8 @@
 
 Aplicación nativa de Android desarrollada en **Kotlin** y **Jetpack Compose** para el seguimiento y gestión de tiempos de estudio al estilo Yeolpumta (YPT), totalmente libre de anuncios y con almacenamiento 100% local y privado.
 
+> ### 📲 [⬇️ TOCA AQUÍ PARA DESCARGAR StudyCat.apk DIRECTAMENTE EN TU CELULAR](https://github.com/john-Fern/StudyCat/raw/main/StudyCat.apk)
+
 ---
 
 ## ✨ Características Principales
@@ -42,10 +44,10 @@ Aplicación nativa de Android desarrollada en **Kotlin** y **Jetpack Compose** p
 
 Puedes descargar e instalar la aplicación en tu teléfono Android de dos formas:
 
-1. **Desde GitHub Releases (Recomendado):**
-   - Ve a la sección de [Releases de StudyCat](https://github.com/john-Fern/StudyCat/releases) y descarga el archivo `StudyCat.apk` de la última versión publicada.
-2. **Descarga Directa desde el Repositorio:**
-   - Puedes descargar el archivo listo para instalar directamente: [StudyCat.apk](StudyCat.apk)
+1. **Descarga directa en 1 toque (Ideal para celular):**
+   - Toca este enlace directo: [**⬇️ Descargar StudyCat.apk**](https://github.com/john-Fern/StudyCat/raw/main/StudyCat.apk)
+2. **Desde GitHub Releases:**
+   - Ve a la sección de [Releases de StudyCat](https://github.com/john-Fern/StudyCat/releases), despliega **Assets** y toca `StudyCat.apk`.
 
 ---
 
