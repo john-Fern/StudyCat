@@ -104,6 +104,59 @@ internal fun generatePkceVerifier(): String {
 internal fun pkceCodeChallenge(verifier: String): String =
   base64UrlNoPadding(MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray(Charsets.US_ASCII)))
 
+/** Resultado del procesamiento del callback de OAuth con Google. */
+sealed class GoogleAuthCallbackResult {
+  data class DirectToken(val accessToken: String, val refreshToken: String) : GoogleAuthCallbackResult()
+  data class PkceCode(val code: String) : GoogleAuthCallbackResult()
+}
+
+/**
+ * Procesa la URL de retorno de Google/Supabase OAuth manejando:
+ * - Parámetros de error con mensajes explicativos en español (ej. si el proveedor no está activo en Supabase).
+ * - Tokens directos en fragmento (#access_token=...&refresh_token=...).
+ * - Código de intercambio PKCE (?code=...).
+ */
+internal fun parseGoogleAuthCallback(
+  callbackUri: String,
+  expectedRedirectPrefix: String,
+): Result<GoogleAuthCallbackResult> {
+  if (!callbackUri.startsWith(expectedRedirectPrefix)) {
+    return Result.failure(IllegalArgumentException("Respuesta de inicio de sesión no válida."))
+  }
+  val params = parseCallbackParams(callbackUri)
+
+  val error = params["error"]
+  val errorDesc = params["error_description"] ?: params["error_code"]
+  if (!error.isNullOrBlank() || !errorDesc.isNullOrBlank()) {
+    val raw = "${error.orEmpty()} ${errorDesc.orEmpty()}".lowercase()
+    val message =
+      when {
+        raw.contains("unsupported_provider") || raw.contains("not enabled") || raw.contains("validation_failed") ->
+          "El inicio de sesión con Google aún no está configurado en el panel de Supabase. Puedes crear tu cuenta o iniciar sesión aquí mismo con Correo y Contraseña en 5 segundos."
+        raw.contains("access_denied") || raw.contains("cancelled") || raw.contains("canceled") ->
+          "Inicio de sesión con Google cancelado por el usuario."
+        !errorDesc.isNullOrBlank() -> errorDesc
+        else -> "Error en la autenticación con Google: $error"
+      }
+    return Result.failure(IllegalStateException(message))
+  }
+
+  val directAccessToken = params["access_token"]
+  if (!directAccessToken.isNullOrBlank()) {
+    val refreshToken = params["refresh_token"].orEmpty()
+    return Result.success(GoogleAuthCallbackResult.DirectToken(directAccessToken, refreshToken))
+  }
+
+  val code = params["code"]
+  if (!code.isNullOrBlank()) {
+    return Result.success(GoogleAuthCallbackResult.PkceCode(code))
+  }
+
+  return Result.failure(
+    IllegalStateException("Google no devolvió credenciales válidas. Inténtalo nuevamente o inicia sesión con tu correo.")
+  )
+}
+
 /** Lee parámetros tanto de la query (`?a=b`) como del fragmento (`#a=b`) de una URI de callback. */
 internal fun parseCallbackParams(uri: String): Map<String, String> {
   val parts = uri.substringAfter('?', "").substringBefore('#') + "&" + uri.substringAfter('#', "")

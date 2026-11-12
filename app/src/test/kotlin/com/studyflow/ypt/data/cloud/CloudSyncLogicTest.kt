@@ -97,4 +97,53 @@ class CloudSyncLogicTest {
     assertEquals("access_denied", fromFragment["error"])
     assertEquals("Cancelado por el usuario", fromFragment["error_description"])
   }
+
+  @Test
+  fun parseGoogleAuthCallback_handlesDirectFragmentTokens() {
+    val uri = "studycat://auth-callback#access_token=token_xyz&refresh_token=refresh_123&token_type=bearer"
+    val result = parseGoogleAuthCallback(uri, "studycat://auth-callback").getOrThrow()
+
+    assertTrue(result is GoogleAuthCallbackResult.DirectToken)
+    val direct = result as GoogleAuthCallbackResult.DirectToken
+    assertEquals("token_xyz", direct.accessToken)
+    assertEquals("refresh_123", direct.refreshToken)
+  }
+
+  @Test
+  fun parseGoogleAuthCallback_handlesPkceCode() {
+    val uri = "studycat://auth-callback?code=auth_code_789"
+    val result = parseGoogleAuthCallback(uri, "studycat://auth-callback").getOrThrow()
+
+    assertTrue(result is GoogleAuthCallbackResult.PkceCode)
+    val pkce = result as GoogleAuthCallbackResult.PkceCode
+    assertEquals("auth_code_789", pkce.code)
+  }
+
+  @Test
+  fun parseGoogleAuthCallback_explainsUnsupportedProviderFriendly() {
+    val uri = "studycat://auth-callback#error=unsupported_provider&error_description=Unsupported+provider%3A+provider+is+not+enabled"
+    val result = parseGoogleAuthCallback(uri, "studycat://auth-callback")
+
+    assertTrue(result.isFailure)
+    val msg = result.exceptionOrNull()?.message.orEmpty()
+    assertTrue(msg.contains("Supabase"))
+    assertTrue(msg.contains("Correo y Contraseña"))
+  }
+
+  @Test
+  fun parseGoogleAuthCallback_handlesUserCancellation() {
+    val uri = "studycat://auth-callback#error=access_denied"
+    val result = parseGoogleAuthCallback(uri, "studycat://auth-callback")
+
+    assertTrue(result.isFailure)
+    assertEquals("Inicio de sesión con Google cancelado por el usuario.", result.exceptionOrNull()?.message)
+  }
+
+  @Test
+  fun parseGoogleAuthCallback_rejectsInvalidRedirectUri() {
+    val uri = "https://otro-sitio.com/callback?code=123"
+    val result = parseGoogleAuthCallback(uri, "studycat://auth-callback")
+
+    assertTrue(result.isFailure)
+  }
 }

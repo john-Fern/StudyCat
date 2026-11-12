@@ -50,6 +50,9 @@ private class FakeCloudSyncService(
 
   override suspend fun completeGoogleSignIn(callbackUri: String): Result<CloudAuthSession> {
     lastGoogleCallback = callbackUri
+    if (callbackUri.contains("error")) {
+      return Result.failure(Exception("El inicio de sesión con Google aún no está configurado en el panel de Supabase."))
+    }
     val session = CloudAuthSession("google-user", "gato@gmail.com", "access", "refresh")
     savedSession = session
     return Result.success(session)
@@ -174,6 +177,21 @@ class CloudAccountViewModelTest {
     assertEquals("studycat://auth-callback?code=abc", cloud.lastGoogleCallback)
     assertTrue(viewModel.cloudAccountState.value.isSignedIn)
     assertEquals("gato@gmail.com", viewModel.cloudAccountState.value.userEmail)
+  }
+
+  @Test(timeout = 10_000L)
+  fun googleCallbackWithError_showsErrorMessageAndStaysSignedOut() = runTest {
+    val cloud = FakeCloudSyncService()
+    val viewModel =
+      MainScreenViewModel(DefaultDataRepository(context = null), coroutineScope = backgroundScope, cloudSyncService = cloud)
+    runCurrent()
+
+    viewModel.completeGoogleSignIn("studycat://auth-callback#error=unsupported_provider")
+    runCurrent()
+
+    assertFalse(viewModel.cloudAccountState.value.isSignedIn)
+    assertNotNull(viewModel.cloudAccountState.value.errorMessage)
+    assertTrue(viewModel.cloudAccountState.value.errorMessage!!.contains("Supabase"))
   }
 
   @Test(timeout = 10_000L)

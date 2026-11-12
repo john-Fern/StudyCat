@@ -141,22 +141,50 @@ class SupabaseCloudSyncService(
 
   override suspend fun completeGoogleSignIn(callbackUri: String): Result<CloudAuthSession> =
     io {
-      require(callbackUri.startsWith(OAUTH_REDIRECT_URI)) { "Respuesta de inicio de sesión no válida." }
-      val params = parseCallbackParams(callbackUri)
-      params["error"]?.let { throw IllegalStateException("Inicio de sesión con Google cancelado.") }
-      val code = params["code"] ?: throw IllegalStateException("Google no devolvió un código de acceso.")
-      val verifier =
-        readEncrypted(KEY_PKCE_VERIFIER)
-          ?: throw IllegalStateException("La solicitud de inicio de sesión expiró. Inténtalo de nuevo.")
-      prefs.edit().remove(KEY_PKCE_VERIFIER).apply() // un solo uso
+      when (val outcome = parseGoogleAuthCallback(callbackUri, OAUTH_REDIRECT_URI).getOrThrow()) {
+        is GoogleAuthCallbackResult.DirectToken -> {
+          // El proveedor retornó los tokens directamente en el fragmento (implicit grant / redirect directo)
+          val userResponse = request("GET", "/auth/v1/user", body = null, bearer = outcome.accessToken)
+          val userObj = json.parseToJsonElement(userResponse).jsonObject
+          val userId =
+            userObj["id"]?.jsonPrimitive?.contentOrNull
+              ?: throw IllegalStateException("Identificador de usuario faltante en la respuesta.")
+          val email = userObj["email"]?.jsonPrimitive?.contentOrNull.orEmpty()
+          val session =
+            CloudAuthSession(
+              userId = userId,
+              email = email,
+              accessToken = outcome.accessToken,
+              refreshToken = outcome.refreshToken,
+            )
+          saveSession(session)
+          session
+        }
+        is GoogleAuthCallbackResult.PkceCode -> {
+          // Flujo PKCE: intercambiar auth_code por tokens usando el code_verifier seguro guardado en reposo
+          val verifier =
+            readEncrypted(KEY_PKCE_VERIFIER)
+              ?: throw IllegalStateException("La solicitud de inicio de sesión expiró. Por favor inténtalo de nuevo.")
+          prefs.edit().remove(KEY_PKCE_VERIFIER).apply() // un solo uso
 
-      val body =
-        buildJsonObject {
-            put("auth_code", code)
-            put("code_verifier", verifier)
-          }
-          .toString()
-      parseSession(request("POST", "/auth/v1/token?grant_type=pkce", body)).also(::saveSession)
+          val body =
+            buildJsonObject {
+                put("auth_code", outcome.code)
+                put("code_verifier", verifier)
+              }
+              .toString()
+          val tokenResponse =
+            try {
+              request("POST", "/auth/v1/token?grant_type=pkce", body)
+            } catch (e: HttpException) {
+              if (e.responseBody.contains("flow_state_not_found") || e.responseBody.contains("invalid flow state")) {
+                throw IllegalStateException("El código de autorización expiró o ya fue usado. Inténtalo de nuevo.")
+              }
+              throw e
+            }
+          parseSession(tokenResponse).also(::saveSession)
+        }
+      }
     }
 
   override suspend fun signOut() {
@@ -271,11 +299,16 @@ class SupabaseCloudSyncService(
 
   private fun parseSession(response: String): CloudAuthSession {
     val obj = json.parseToJsonElement(response).jsonObject
-    val user: JsonObject = obj["user"]?.jsonObject ?: throw IllegalStateException("Respuesta incompleta.")
+    val user: JsonObject =
+      obj["user"]?.jsonObject ?: throw IllegalStateException("No se recibieron datos de usuario del servidor.")
     return CloudAuthSession(
-      userId = user["id"]?.jsonPrimitive?.contentOrNull ?: throw IllegalStateException("Respuesta incompleta."),
+      userId =
+        user["id"]?.jsonPrimitive?.contentOrNull
+          ?: throw IllegalStateException("Identificador de usuario faltante en la respuesta."),
       email = user["email"]?.jsonPrimitive?.contentOrNull.orEmpty(),
-      accessToken = obj["access_token"]?.jsonPrimitive?.contentOrNull ?: throw IllegalStateException("Sin token."),
+      accessToken =
+        obj["access_token"]?.jsonPrimitive?.contentOrNull
+          ?: throw IllegalStateException("No se pudo obtener el token de acceso."),
       refreshToken = obj["refresh_token"]?.jsonPrimitive?.contentOrNull.orEmpty(),
     )
   }
@@ -322,6 +355,10 @@ class SupabaseCloudSyncService(
       body.contains("user_already_exists") || body.contains("already registered") ->
         "Este correo ya está registrado. Usa \"Iniciar sesión\"."
       body.contains("weak_password") -> "La contraseña es demasiado débil. Usa una más larga y variada."
+      body.contains("flow_state_not_found") || body.contains("invalid flow state") ->
+        "La sesión de autorización expiró. Por favor inténtalo de nuevo."
+      body.contains("unsupported_provider") || body.contains("provider is not enabled") ->
+        "El inicio de sesión con Google aún no está configurado en el panel de Supabase. Puedes usar Correo y Contraseña."
       e.status == 429 -> "Demasiados intentos. Espera un momento e inténtalo de nuevo."
       else -> "No se pudo completar la operación en la nube (código ${e.status})."
     }

@@ -2,6 +2,7 @@ package com.studyflow.ypt.ui.main
 
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -470,7 +471,9 @@ internal fun YptScaffold(
             try {
               val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
               context.startActivity(intent)
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+              Toast.makeText(context, "No se encontró un navegador web para abrir Google.", Toast.LENGTH_SHORT).show()
+            }
           }
         },
         onSyncNow = onSyncNow,
@@ -516,6 +519,7 @@ private fun TimerTabContent(
   modifier: Modifier = Modifier,
 ) {
   val palette = LocalPalette.current
+  val context = LocalContext.current
   val activeSubject = state.subjects.find { it.id == state.activeTimer.subjectId }
   val isPomodoro = state.timerMode == TimerMode.POMODORO
   val dateFormatted = remember {
@@ -548,13 +552,16 @@ private fun TimerTabContent(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
       ) {
-        // Fila superior: Identidad StudyCat + Botón Tema + Estado de Pantalla Activa
+        // Fila superior: Identidad StudyCat + Acciones (Nube/Cuenta, Tema, Pantalla Activa)
         Row(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically,
         ) {
-          Row(verticalAlignment = Alignment.CenterVertically) {
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f, fill = false),
+          ) {
             Surface(
               color = palette.accent.copy(alpha = 0.16f),
               shape = CircleShape,
@@ -571,19 +578,24 @@ private fun TimerTabContent(
                 text = "StudyCat",
                 color = palette.textPrimary,
                 fontWeight = FontWeight.ExtraBold,
-                fontSize = 16.sp,
+                fontSize = 15.sp,
+                maxLines = 1,
               )
               Text(
                 text = dateFormatted,
                 color = palette.textSecondary,
                 fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
               )
             }
           }
 
+          Spacer(modifier = Modifier.width(6.dp))
+
           Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
           ) {
             // Botón Nube / Cuenta
             Surface(
@@ -595,7 +607,7 @@ private fun TimerTabContent(
                   .semantics { contentDescription = "Cuenta y respaldo en la nube" },
             ) {
               Row(
-                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
                 verticalAlignment = Alignment.CenterVertically,
               ) {
                 Icon(
@@ -618,12 +630,14 @@ private fun TimerTabContent(
                     },
                   modifier = Modifier.size(13.dp),
                 )
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(3.dp))
                 Text(
                   text = if (cloudAccount.isSignedIn) "Nube" else "Cuenta",
                   color = palette.textPrimary,
                   fontSize = 11.sp,
                   fontWeight = FontWeight.SemiBold,
+                  maxLines = 1,
+                  softWrap = false,
                 )
               }
             }
@@ -638,57 +652,75 @@ private fun TimerTabContent(
                   .semantics { contentDescription = "Cambiar tema" },
             ) {
               Row(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
                 verticalAlignment = Alignment.CenterVertically,
               ) {
                 Icon(
                   imageVector = Icons.Default.Palette,
                   contentDescription = null,
                   tint = palette.accent,
-                  modifier = Modifier.size(14.dp),
+                  modifier = Modifier.size(13.dp),
                 )
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(3.dp))
                 Text(
                   text = "Tema",
                   color = palette.textPrimary,
                   fontSize = 11.sp,
                   fontWeight = FontWeight.SemiBold,
+                  maxLines = 1,
+                  softWrap = false,
                 )
               }
             }
 
-            // Indicador de pantalla siempre encendida
+            // Indicador de pantalla siempre encendida (compacto: nunca desborda en vertical)
+            val isScreenActive = state.activeTimer.isRunning
             Surface(
               color =
-                if (state.activeTimer.isRunning) {
+                if (isScreenActive) {
                   Color(0xFF10B981).copy(alpha = 0.2f)
                 } else {
                   palette.subtleSurface
                 },
               shape = RoundedCornerShape(50),
+              modifier =
+                Modifier.clip(RoundedCornerShape(50))
+                  .clickable {
+                    Toast.makeText(
+                      context,
+                      if (isScreenActive) {
+                        "Pantalla activa: no se apagará mientras estudies ☀️"
+                      } else {
+                        "Modo en espera: la pantalla no se bloqueará al activar el temporizador ☀️"
+                      },
+                      Toast.LENGTH_SHORT,
+                    ).show()
+                  }
+                  .semantics {
+                    contentDescription = if (isScreenActive) "Pantalla activa" else "En espera"
+                  },
             ) {
               Row(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp),
                 verticalAlignment = Alignment.CenterVertically,
               ) {
                 Icon(
                   imageVector = Icons.Default.LightMode,
                   contentDescription = null,
-                  tint = if (state.activeTimer.isRunning) Color(0xFF10B981) else palette.textSecondary,
-                  modifier = Modifier.size(14.dp),
+                  tint = if (isScreenActive) Color(0xFF10B981) else palette.textSecondary,
+                  modifier = Modifier.size(13.dp),
                 )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                  text =
-                    if (state.activeTimer.isRunning) {
-                      "Pantalla siempre activa"
-                    } else {
-                      "En espera"
-                    },
-                  color = if (state.activeTimer.isRunning) Color(0xFF10B981) else palette.textSecondary,
-                  fontSize = 11.sp,
-                  fontWeight = FontWeight.Medium,
-                )
+                if (isScreenActive) {
+                  Spacer(modifier = Modifier.width(3.dp))
+                  Text(
+                    text = "Activa",
+                    color = Color(0xFF10B981),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    softWrap = false,
+                  )
+                }
               }
             }
           }
@@ -1253,6 +1285,8 @@ private fun StatsTabContent(
                   palette.accent
                 },
               fontSize = 12.sp,
+              maxLines = 1,
+              softWrap = false,
             )
           }
           TextButton(onClick = onOpenThemeSelector) {
@@ -1263,7 +1297,13 @@ private fun StatsTabContent(
               modifier = Modifier.size(16.dp),
             )
             Spacer(modifier = Modifier.width(4.dp))
-            Text(state.selectedTheme.displayName, color = palette.accent, fontSize = 12.sp)
+            Text(
+              text = state.selectedTheme.displayName,
+              color = palette.accent,
+              fontSize = 12.sp,
+              maxLines = 1,
+              softWrap = false,
+            )
           }
         }
       }
