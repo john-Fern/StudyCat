@@ -7,6 +7,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -186,6 +188,76 @@ internal fun paletteForTheme(theme: AppTheme): StudyCatPalette =
         accent = Color(0xFF10B981),
         textPrimary = Color(0xFFECFDF5),
         textSecondary = Color(0xFFA7F3D0).copy(alpha = 0.72f),
+        subtleSurface = Color.White.copy(alpha = 0.06f),
+      )
+    AppTheme.LAVENDER_DREAM ->
+      StudyCatPalette(
+        bg = Color(0xFFF8F5FE),
+        cardBg = Color(0xFFFFFFFF),
+        headerBg = Color(0xFFEEE8FC),
+        accent = Color(0xFF8B5CF6),
+        textPrimary = Color(0xFF2E1065),
+        textSecondary = Color(0xFF6D28D9),
+        subtleSurface = Color(0xFF8B5CF6).copy(alpha = 0.10f),
+      )
+    AppTheme.AMBER_SUNSET ->
+      StudyCatPalette(
+        bg = Color(0xFF15100B),
+        cardBg = Color(0xFF211A13),
+        headerBg = Color(0xFF1B140E),
+        accent = Color(0xFFF59E0B),
+        textPrimary = Color(0xFFFEF3C7),
+        textSecondary = Color(0xFFD97706),
+        subtleSurface = Color.White.copy(alpha = 0.06f),
+      )
+    AppTheme.NORDIC_FROST ->
+      StudyCatPalette(
+        bg = Color(0xFF0C141F),
+        cardBg = Color(0xFF142030),
+        headerBg = Color(0xFF0F1927),
+        accent = Color(0xFF38BDF8),
+        textPrimary = Color(0xFFF0F9FF),
+        textSecondary = Color(0xFF7DD3FC),
+        subtleSurface = Color.White.copy(alpha = 0.06f),
+      )
+    AppTheme.COFFEE_LATTE ->
+      StudyCatPalette(
+        bg = Color(0xFFFAF6F0),
+        cardBg = Color(0xFFFFFFFF),
+        headerBg = Color(0xFFF0E7DB),
+        accent = Color(0xFF8D5B4C),
+        textPrimary = Color(0xFF3B271E),
+        textSecondary = Color(0xFF7C5949),
+        subtleSurface = Color(0xFF8D5B4C).copy(alpha = 0.10f),
+      )
+    AppTheme.NEO_VIOLET ->
+      StudyCatPalette(
+        bg = Color(0xFF0E071A),
+        cardBg = Color(0xFF1A102E),
+        headerBg = Color(0xFF150C25),
+        accent = Color(0xFFD946EF),
+        textPrimary = Color(0xFFFAF5FF),
+        textSecondary = Color(0xFFC084FC),
+        subtleSurface = Color.White.copy(alpha = 0.06f),
+      )
+    AppTheme.MINT_BREEZE ->
+      StudyCatPalette(
+        bg = Color(0xFFF0FDF4),
+        cardBg = Color(0xFFFFFFFF),
+        headerBg = Color(0xFFDCFCE7),
+        accent = Color(0xFF059669),
+        textPrimary = Color(0xFF064E3B),
+        textSecondary = Color(0xFF047857),
+        subtleSurface = Color(0xFF059669).copy(alpha = 0.10f),
+      )
+    AppTheme.CRIMSON_NIGHT ->
+      StudyCatPalette(
+        bg = Color(0xFF140A0D),
+        cardBg = Color(0xFF221117),
+        headerBg = Color(0xFF1B0D12),
+        accent = Color(0xFFF43F5E),
+        textPrimary = Color(0xFFFFF1F2),
+        textSecondary = Color(0xFFFDA4AF),
         subtleSurface = Color.White.copy(alpha = 0.06f),
       )
   }
@@ -1837,7 +1909,10 @@ private fun ThemeSelectorDialog(
     onDismissRequest = onDismiss,
     title = { Text("Temas de StudyCat 🐾") },
     text = {
-      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+      Column(
+        modifier = Modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
         AppTheme.entries.forEach { theme ->
           val previewPalette = paletteForTheme(theme)
           val isSelected = theme == currentTheme
@@ -1863,12 +1938,21 @@ private fun ThemeSelectorDialog(
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-              Text(
-                text = theme.displayName,
-                color = previewPalette.textPrimary,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-              )
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                  text = theme.displayName,
+                  color = previewPalette.textPrimary,
+                  fontWeight = FontWeight.Bold,
+                  fontSize = 14.sp,
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                  text = if (theme.isDark) "🌙 Oscuro" else "☀️ Claro",
+                  color = previewPalette.textSecondary,
+                  fontSize = 10.sp,
+                  fontWeight = FontWeight.Medium,
+                )
+              }
               Text(
                 text = theme.description,
                 color = previewPalette.textSecondary,
@@ -2107,6 +2191,57 @@ private fun PomodoroAlarmDialog(
 }
 
 @Composable
+private fun SubjectColorGrid(
+  selectedColor: Long,
+  onColorSelect: (Long) -> Unit,
+  availableColors: List<Long>,
+  modifier: Modifier = Modifier,
+) {
+  Column(
+    modifier = modifier.fillMaxWidth(),
+    verticalArrangement = Arrangement.spacedBy(8.dp),
+  ) {
+    availableColors.chunked(6).forEach { rowColors ->
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+      ) {
+        rowColors.forEach { colorHex ->
+          val isSelected = selectedColor == colorHex
+          Box(
+            modifier =
+              Modifier.size(32.dp)
+                .clip(CircleShape)
+                .background(Color(colorHex))
+                .then(
+                  if (isSelected) {
+                    Modifier.border(2.5.dp, Color.White, CircleShape)
+                  } else {
+                    Modifier
+                  }
+                )
+                .clickable { onColorSelect(colorHex) },
+            contentAlignment = Alignment.Center,
+          ) {
+            if (isSelected) {
+              Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = "Seleccionado",
+                tint = Color.White,
+                modifier = Modifier.size(16.dp),
+              )
+            }
+          }
+        }
+        repeat(6 - rowColors.size) {
+          Spacer(modifier = Modifier.size(32.dp))
+        }
+      }
+    }
+  }
+}
+
+@Composable
 private fun AddSubjectDialog(
   onDismiss: () -> Unit,
   onConfirm: (String, Long, Int) -> Unit,
@@ -2119,7 +2254,36 @@ private fun AddSubjectDialog(
     onDismissRequest = onDismiss,
     title = { Text("Nueva Materia") },
     text = {
-      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+      Column(
+        modifier = Modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+      ) {
+        // Vista previa en vivo del nombre y color seleccionado
+        Row(
+          modifier =
+            Modifier.fillMaxWidth()
+              .clip(RoundedCornerShape(8.dp))
+              .background(Color(selectedColor).copy(alpha = 0.16f))
+              .padding(horizontal = 12.dp, vertical = 8.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Box(
+            modifier =
+              Modifier.size(14.dp)
+                .clip(CircleShape)
+                .background(Color(selectedColor))
+          )
+          Spacer(modifier = Modifier.width(8.dp))
+          Text(
+            text = name.ifBlank { "Vista previa de la materia" },
+            color = Color(selectedColor),
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+          )
+        }
+
         OutlinedTextField(
           value = name,
           onValueChange = { name = it },
@@ -2135,28 +2299,11 @@ private fun AddSubjectDialog(
           modifier = Modifier.fillMaxWidth(),
         )
         Text("Color distintivo:", style = MaterialTheme.typography.bodySmall)
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-          SubjectColorPalette.forEach { colorHex ->
-            val isSelected = selectedColor == colorHex
-            Box(
-              modifier =
-                Modifier.size(32.dp)
-                  .clip(CircleShape)
-                  .background(Color(colorHex))
-                  .then(
-                    if (isSelected) {
-                      Modifier.border(2.5.dp, Color.White, CircleShape)
-                    } else {
-                      Modifier
-                    }
-                  )
-                  .clickable { selectedColor = colorHex }
-            )
-          }
-        }
+        SubjectColorGrid(
+          selectedColor = selectedColor,
+          onColorSelect = { selectedColor = it },
+          availableColors = SubjectColorPalette,
+        )
       }
     },
     confirmButton = {
@@ -2164,7 +2311,7 @@ private fun AddSubjectDialog(
         onClick = {
           val mins = targetMinutesText.toIntOrNull()?.coerceIn(10, 720) ?: 60
           if (name.isNotBlank()) {
-            onConfirm(name, selectedColor, mins)
+            onConfirm(name.trim(), selectedColor, mins)
           }
         }
       ) {
@@ -2194,7 +2341,36 @@ private fun EditSubjectDialog(
     onDismissRequest = onDismiss,
     title = { Text("Editar Materia") },
     text = {
-      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+      Column(
+        modifier = Modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+      ) {
+        // Vista previa en vivo del nombre y color seleccionado
+        Row(
+          modifier =
+            Modifier.fillMaxWidth()
+              .clip(RoundedCornerShape(8.dp))
+              .background(Color(selectedColor).copy(alpha = 0.16f))
+              .padding(horizontal = 12.dp, vertical = 8.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Box(
+            modifier =
+              Modifier.size(14.dp)
+                .clip(CircleShape)
+                .background(Color(selectedColor))
+          )
+          Spacer(modifier = Modifier.width(8.dp))
+          Text(
+            text = name.ifBlank { "Vista previa de la materia" },
+            color = Color(selectedColor),
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+          )
+        }
+
         OutlinedTextField(
           value = name,
           onValueChange = { name = it },
@@ -2210,28 +2386,11 @@ private fun EditSubjectDialog(
           modifier = Modifier.fillMaxWidth(),
         )
         Text("Color distintivo:", style = MaterialTheme.typography.bodySmall)
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-          availableColors.forEach { colorHex ->
-            val isSelected = selectedColor == colorHex
-            Box(
-              modifier =
-                Modifier.size(32.dp)
-                  .clip(CircleShape)
-                  .background(Color(colorHex))
-                  .then(
-                    if (isSelected) {
-                      Modifier.border(2.5.dp, Color.White, CircleShape)
-                    } else {
-                      Modifier
-                    }
-                  )
-                  .clickable { selectedColor = colorHex }
-            )
-          }
-        }
+        SubjectColorGrid(
+          selectedColor = selectedColor,
+          onColorSelect = { selectedColor = it },
+          availableColors = availableColors,
+        )
       }
     },
     confirmButton = {

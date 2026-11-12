@@ -1,6 +1,6 @@
 # StudyCat — Guía para Agentes (AGENTS.md)
 
-**StudyCat** es una aplicación nativa de Android para gestionar tiempos de estudio por materias, 100% libre de anuncios y con arquitectura **local-first** y respaldo opcional en la nube con **Supabase** (PostgreSQL + RLS). Combina **Cronómetro progresivo por materia**, **Temporizador Pomodoro por fases con alarmas sonoras/vibración**, **Modo de Enfoque OLED**, **5 temas visuales** (`StudyCatPalette`), **estadísticas diarias detalladas** (incluyendo la cuadrícula interactiva de bloques de 10 minutos) y **sincronización segura en la nube (Email/Password y Google OAuth con PKCE)**.
+**StudyCat** es una aplicación nativa de Android para gestionar tiempos de estudio por materias, 100% libre de anuncios y con arquitectura **local-first** y respaldo opcional en la nube con **Supabase** (PostgreSQL + RLS). Combina **Cronómetro progresivo por materia**, **Temporizador Pomodoro por fases con alarmas sonoras/vibración**, **Modo de Enfoque OLED**, **12 temas visuales** (`StudyCatPalette` para modos oscuros y claros), **paleta extendida de 24 colores para materias**, **modo minimalista con cabecera comprimible**, **estadísticas diarias detalladas** (incluyendo la cuadrícula interactiva de bloques de 10 minutos) y **sincronización segura en la nube (Email/Password y Google OAuth con PKCE)**.
 
 Antes de modificar cualquier archivo, respeta las reglas globales de XP/KISS/TDD y las convenciones específicas de esta arquitectura.
 
@@ -39,7 +39,8 @@ El proyecto sigue una arquitectura **MVVM ligera con Flujo de Datos Unidireccion
   - Expone `yptState: StateFlow<YptDashboardState>` y `cloudAccountState: StateFlow<CloudAccountUiState>`.
   - Realiza sincronización automática debounced (`AUTO_SYNC_DEBOUNCE_MILLIS = 3_000L`) ante cambios locales mientras el usuario tenga sesión activa.
 - **`MainScreen.kt` y Temas (`StudyCatPalette`):**
-  - 5 temas (`DARK_YPT`, `PASTEL_CAT`, `LIGHT_PAPER`, `MIDNIGHT_CYBER`, `MATCHA_FOREST`) resueltos por `paletteForTheme(theme)` e inyectados por `LocalPalette`.
+  - 12 temas (`DARK_YPT`, `PASTEL_CAT`, `LIGHT_PAPER`, `MIDNIGHT_CYBER`, `MATCHA_FOREST`, `LAVENDER_DREAM`, `AMBER_SUNSET`, `NORDIC_FROST`, `COFFEE_LATTE`, `NEO_VIOLET`, `MINT_BREEZE`, `CRIMSON_NIGHT`) resueltos por `paletteForTheme(theme)` e inyectados por `LocalPalette`.
+  - Paleta de 24 colores para materias en cuadrícula interactiva con vista previa en tiempo real (`SubjectColorPalette`, `SubjectColorGrid`).
   - Todo nuevo componente visual debe usar `LocalPalette.current` (`palette.bg`, `palette.cardBg`, `palette.accent`, `palette.textPrimary`, `palette.textSecondary`, `palette.subtleSurface`).
 - **`KeepScreenOn.kt`:**
   - Mantiene la pantalla encendida siempre que `activeTimer.isRunning` o `activeAlarm != null`. Maneja además `PomodoroAlarmEffect` (audio en canal de alarma + vibración rítmica).

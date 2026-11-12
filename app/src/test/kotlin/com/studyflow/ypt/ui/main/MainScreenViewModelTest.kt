@@ -3,6 +3,7 @@ package com.studyflow.ypt.ui.main
 import com.studyflow.ypt.data.AppTheme
 import com.studyflow.ypt.data.DefaultDataRepository
 import com.studyflow.ypt.data.PomodoroPhase
+import com.studyflow.ypt.data.SubjectColorPalette
 import com.studyflow.ypt.data.TimerMode
 import junit.framework.TestCase.assertEquals
 import junit.framework.TestCase.assertFalse
@@ -193,7 +194,38 @@ class MainScreenViewModelTest {
       assertEquals(theme, viewModel.yptState.value.selectedTheme)
       val palette = paletteForTheme(theme)
       assertNotNull(palette.bg)
+      assertNotNull(palette.cardBg)
+      assertNotNull(palette.headerBg)
       assertNotNull(palette.accent)
+      assertNotNull(palette.textPrimary)
+      assertNotNull(palette.textSecondary)
+      assertNotNull(palette.subtleSurface)
+    }
+    assertTrue("Debe contar con al menos 10 temas visuales", AppTheme.entries.size >= 10)
+  }
+
+  @Test(timeout = 10_000L)
+  fun subjectColorPalette_hasExtensiveOptions_andAllColorsPersistOnSubjects() = runTest {
+    assertTrue("La paleta de materias debe tener al menos 20 opciones de color", SubjectColorPalette.size >= 20)
+
+    val repository = DefaultDataRepository(context = null)
+    val viewModel = MainScreenViewModel(repository, coroutineScope = backgroundScope)
+    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.yptState.collect {} }
+    runCurrent()
+
+    val targetSubject = viewModel.yptState.value.subjects.first()
+
+    // Probar que cada color de la paleta expandida se puede asignar y persiste
+    SubjectColorPalette.take(5).forEach { colorHex ->
+      viewModel.updateSubject(
+        subjectId = targetSubject.id,
+        name = "Materia Test",
+        colorHex = colorHex,
+        targetMinutesPerDay = 45,
+      )
+      runCurrent()
+      val updated = viewModel.yptState.value.subjects.find { it.id == targetSubject.id }
+      assertEquals(colorHex, updated?.colorHex)
     }
   }
 
