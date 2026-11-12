@@ -208,6 +208,7 @@ fun MainScreen(
       onDeleteSubject = viewModel::deleteSubject,
       onUpdateSessionEndTime = viewModel::updateSessionEndTime,
       onDeleteSession = viewModel::deleteSession,
+      onSelectTimelineBlock = viewModel::selectSessionForTenMinuteBlock,
       onEnterOledMode = { viewModel.setOledFocusMode(true) },
       onSelectTheme = viewModel::setAppTheme,
       onSelectTimerMode = viewModel::setTimerMode,
@@ -230,6 +231,9 @@ internal fun YptScaffold(
   onDeleteSubject: (String) -> Unit,
   onUpdateSessionEndTime: (String, Long) -> Unit = { _, _ -> },
   onDeleteSession: (String) -> Unit = {},
+  onSelectTimelineBlock: (Int, Int) -> String? = { hour, blockIdx ->
+    findSessionForTenMinuteBlock(state.todaySessions, hour, blockIdx)?.id
+  },
   onEnterOledMode: () -> Unit,
   onSelectTheme: (AppTheme) -> Unit = {},
   onSelectTimerMode: (TimerMode) -> Unit = {},
@@ -316,6 +320,9 @@ internal fun YptScaffold(
           state = state,
           onOpenThemeSelector = { showThemeDialog = true },
           onEditSession = { id -> editingSessionId = id },
+          onSelectTimelineBlock = { hour, blockIdx ->
+            onSelectTimelineBlock(hour, blockIdx)?.let { id -> editingSessionId = id }
+          },
           modifier = Modifier.padding(innerPadding),
         )
       }
@@ -1039,6 +1046,7 @@ private fun StatsTabContent(
   state: YptDashboardState,
   onOpenThemeSelector: () -> Unit,
   onEditSession: (String) -> Unit = {},
+  onSelectTimelineBlock: (Int, Int) -> Unit = { _, _ -> },
   modifier: Modifier = Modifier,
 ) {
   val palette = LocalPalette.current
@@ -1296,10 +1304,11 @@ private fun StatsTabContent(
               ) {
                 blocks.forEachIndexed { blockIdx, colorHex ->
                   Box(
+                    contentAlignment = Alignment.Center,
                     modifier =
                       Modifier.weight(1f)
-                        .height(16.dp)
-                        .clip(RoundedCornerShape(4.dp))
+                        .height(22.dp)
+                        .clip(RoundedCornerShape(5.dp))
                         .background(
                           if (colorHex != null) {
                             Color(colorHex)
@@ -1309,15 +1318,26 @@ private fun StatsTabContent(
                         )
                         .then(
                           if (colorHex != null) {
-                            Modifier.clickable {
-                              findSessionForTenMinuteBlock(state.todaySessions, hour, blockIdx)
-                                ?.let { matched -> onEditSession(matched.id) }
-                            }
+                            Modifier.border(
+                                1.dp,
+                                Color.White.copy(alpha = 0.45f),
+                                RoundedCornerShape(5.dp),
+                              )
+                              .clickable { onSelectTimelineBlock(hour, blockIdx) }
                           } else {
                             Modifier
                           }
-                        )
-                  )
+                        ),
+                  ) {
+                    if (colorHex != null) {
+                      Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Editar bloque de las $hour:${blockIdx * 10}",
+                        tint = Color.White.copy(alpha = 0.85f),
+                        modifier = Modifier.size(11.dp),
+                      )
+                    }
+                  }
                 }
               }
             }
@@ -1739,11 +1759,23 @@ private fun EditSessionDialog(
     mutableStateOf(String.format(Locale.getDefault(), "%02d", initialCal.get(Calendar.SECOND)))
   }
 
+  val initialDurationSec =
+    ((session.endTimeMillis - session.startTimeMillis) / 1_000L).coerceAtLeast(1L)
+  var durationMinText by remember(session.id, session.endTimeMillis) {
+    mutableStateOf((initialDurationSec / 60L).toString())
+  }
+  var durationSecText by remember(session.id, session.endTimeMillis) {
+    mutableStateOf((initialDurationSec % 60L).toString())
+  }
+
   fun syncFieldsFromMillis(millis: Long) {
     val cal = Calendar.getInstance().apply { timeInMillis = millis }
     endHourText = String.format(Locale.getDefault(), "%02d", cal.get(Calendar.HOUR_OF_DAY))
     endMinuteText = String.format(Locale.getDefault(), "%02d", cal.get(Calendar.MINUTE))
     endSecondText = String.format(Locale.getDefault(), "%02d", cal.get(Calendar.SECOND))
+    val durSec = ((millis - session.startTimeMillis) / 1_000L).coerceAtLeast(1L)
+    durationMinText = (durSec / 60L).toString()
+    durationSecText = (durSec % 60L).toString()
   }
 
   fun shiftEndMillis(deltaMillis: Long) {
@@ -1764,8 +1796,24 @@ private fun EditSessionDialog(
           set(Calendar.MINUTE, m)
           set(Calendar.SECOND, s)
         }
-      editedEndMillis = cal.timeInMillis.coerceAtLeast(session.startTimeMillis + 1_000L)
+      val updated = cal.timeInMillis.coerceAtLeast(session.startTimeMillis + 1_000L)
+      editedEndMillis = updated
+      val durSec = ((updated - session.startTimeMillis) / 1_000L).coerceAtLeast(1L)
+      durationMinText = (durSec / 60L).toString()
+      durationSecText = (durSec % 60L).toString()
     }
+  }
+
+  fun updateMillisFromDuration(minStr: String, secStr: String) {
+    val mins = minStr.toLongOrNull() ?: 0L
+    val secs = secStr.toLongOrNull() ?: 0L
+    val totalSec = (mins * 60L + secs).coerceAtLeast(1L)
+    val updated = session.startTimeMillis + totalSec * 1_000L
+    editedEndMillis = updated
+    val cal = Calendar.getInstance().apply { timeInMillis = updated }
+    endHourText = String.format(Locale.getDefault(), "%02d", cal.get(Calendar.HOUR_OF_DAY))
+    endMinuteText = String.format(Locale.getDefault(), "%02d", cal.get(Calendar.MINUTE))
+    endSecondText = String.format(Locale.getDefault(), "%02d", cal.get(Calendar.SECOND))
   }
 
   val resultingDurationSeconds =
@@ -1776,7 +1824,7 @@ private fun EditSessionDialog(
     onDismissRequest = onDismiss,
     title = { Text("Editar Bloque de Estudio") },
     text = {
-      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
           Box(
             modifier =
@@ -1792,7 +1840,7 @@ private fun EditSessionDialog(
           )
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
           Text(
             text = "Hora de inicio (fija): $startFormatted",
             style = MaterialTheme.typography.bodySmall,
@@ -1810,7 +1858,40 @@ private fun EditSessionDialog(
         }
 
         Text(
-          text = "Ajustar tiempo de término (HH : MM : SS):",
+          text = "Ajustar tiempo estudiado (ajusta el término):",
+          style = MaterialTheme.typography.bodySmall,
+        )
+
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+          OutlinedTextField(
+            value = durationMinText,
+            onValueChange = {
+              val filtered = it.filter { ch -> ch.isDigit() }.take(3)
+              durationMinText = filtered
+              updateMillisFromDuration(filtered, durationSecText)
+            },
+            label = { Text("Minutos") },
+            singleLine = true,
+            modifier = Modifier.weight(1f),
+          )
+          OutlinedTextField(
+            value = durationSecText,
+            onValueChange = {
+              val filtered = it.filter { ch -> ch.isDigit() }.take(2)
+              durationSecText = filtered
+              updateMillisFromDuration(durationMinText, filtered)
+            },
+            label = { Text("Segundos") },
+            singleLine = true,
+            modifier = Modifier.weight(1f),
+          )
+        }
+
+        Text(
+          text = "O indicar hora exacta de término (HH : MM : SS):",
           style = MaterialTheme.typography.bodySmall,
         )
 
@@ -1888,30 +1969,6 @@ private fun EditSessionDialog(
       TextButton(onClick = onDismiss) { Text("Cancelar") }
     },
   )
-}
-
-internal fun findSessionForTenMinuteBlock(
-  sessions: List<StudySession>,
-  hour: Int,
-  blockIdx: Int,
-): StudySession? {
-  val cal = Calendar.getInstance()
-  return sessions.lastOrNull { session ->
-    var cursor = session.startTimeMillis
-    val end = session.endTimeMillis.coerceAtLeast(cursor + 1000L)
-    var matches = false
-    while (cursor <= end) {
-      cal.timeInMillis = cursor
-      val h = cal.get(Calendar.HOUR_OF_DAY)
-      val m = cal.get(Calendar.MINUTE)
-      if (h == hour && (m / 10).coerceIn(0, 5) == blockIdx) {
-        matches = true
-        break
-      }
-      cursor += 60_000L
-    }
-    matches
-  }
 }
 
 internal fun formatDurationHms(totalSeconds: Long): String {

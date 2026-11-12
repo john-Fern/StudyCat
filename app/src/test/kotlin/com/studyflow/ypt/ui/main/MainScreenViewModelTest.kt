@@ -359,6 +359,44 @@ class MainScreenViewModelTest {
   }
 
   @Test(timeout = 10_000L)
+  fun selectSessionForTenMinuteBlock_returnsMatchingSessionAndStopsLiveTimerIfNeeded() = runTest {
+    val baseTime = 1_700_000_000_000L
+    val repository = DefaultDataRepository(context = null)
+    val viewModel =
+      MainScreenViewModel(
+        repository,
+        currentTimeProvider = { baseTime + testScheduler.currentTime },
+        coroutineScope = backgroundScope,
+      )
+    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.yptState.collect {} }
+    runCurrent()
+
+    val subjectId = viewModel.yptState.value.subjects.first().id
+    viewModel.toggleSubjectTimer(subjectId)
+    runCurrent()
+
+    // Avanzar 45 segundos con el cronómetro aún corriendo
+    advanceTimeBy(45_000L)
+    runCurrent()
+
+    val paintedBlocks = getTenMinuteBlocksForRange(baseTime, baseTime + 45_000L)
+    assertTrue(paintedBlocks.isNotEmpty())
+    val (hour, blockIdx) = paintedBlocks.first()
+
+    // El bloque debe estar pintado en el timeline
+    assertNotNull(viewModel.yptState.value.tenMinuteBlocks[hour]?.get(blockIdx))
+
+    // Al hacer click en ese bloque del timeline mientras corre, detiene el timer y devuelve la sesión para editarla
+    val selectedSessionId = viewModel.selectSessionForTenMinuteBlock(hour, blockIdx)
+    runCurrent()
+
+    assertNotNull(selectedSessionId)
+    assertFalse(viewModel.yptState.value.activeTimer.isRunning)
+    assertEquals(1, viewModel.yptState.value.todaySessions.size)
+    assertEquals(selectedSessionId, viewModel.yptState.value.todaySessions.first().id)
+  }
+
+  @Test(timeout = 10_000L)
   fun formatDurationHelpers_formatCorrectly() {
     assertEquals("00:00:00", formatDurationHms(0L))
     assertEquals("01:05:09", formatDurationHms(3909L))

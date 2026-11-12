@@ -38,12 +38,13 @@ jobs:
         run: |
           mkdir -p release-artifacts
           cp app/build/outputs/apk/debug/app-debug.apk release-artifacts/StudyCat.apk
+          cp app/build/outputs/apk/debug/app-debug.apk release-artifacts/StudyCat-${{ github.ref_name }}.apk
 
       - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: StudyCat-APK
-          path: release-artifacts/StudyCat.apk
+          path: release-artifacts/*.apk
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -58,14 +59,16 @@ jobs:
             ### ✨ Funcionalidades incluidas
             - ⏱️ **Cronómetro Progresivo**: Registro de tiempo de estudio por materia.
             - 🍅 **Temporizador Pomodoro**: Fases de Enfoque, Descanso Corto y Descanso Largo.
-            - ✏️ **Edición de Materias y Bloques**: Edita materias o corrige/elimina bloques de estudio registrados.
+            - ✏️ **Edición de Materias y Bloques desde el Timeline**: Edita materias o toca cualquier bloque estudiado en el Timeline de 10 minutos para ajustar su tiempo de término o eliminarlo.
             - 🖤 **Modo Pantalla Negra (OLED)**: Máximo ahorro de batería con fondo negro puro `#000000`.
-            - 📊 **Timeline de 10 Minutos**: Visualización diaria dividida en 6 bloques por hora.
+            - 📊 **Timeline de 10 Minutos**: Visualización diaria interactiva dividida en 6 bloques por hora.
             - 🎨 **5 Temas Visuales**: Noche Coral, Gatito Sakura, Papel Estudio, Medianoche y Bosque Matcha.
             - 🔒 **100% Offline y Sin Anuncios**: Tu información se almacena localmente en tu dispositivo.
             
             ### 📲 Instalación
-            Descarga el archivo `StudyCat.apk` adjunto abajo e instálalo en tu teléfono.
-          files: release-artifacts/StudyCat.apk
+            Descarga el archivo `StudyCat-${{ github.ref_name }}.apk` adjunto abajo e instálalo en tu teléfono.
+          files: |
+            release-artifacts/StudyCat-${{ github.ref_name }}.apk
+            release-artifacts/StudyCat.apk
           draft: false
           prerelease: false

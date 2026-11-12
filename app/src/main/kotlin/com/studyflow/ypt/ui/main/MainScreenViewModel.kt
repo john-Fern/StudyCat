@@ -411,6 +411,22 @@ class MainScreenViewModel(
     dataRepository.deleteSession(sessionId)
   }
 
+  fun selectSessionForTenMinuteBlock(hour: Int, blockIdx: Int): String? {
+    val active = _activeTimer.value
+    if (active.subjectId != null && !active.isBreakRunning) {
+      val liveEnd =
+        maxOf(currentTimeProvider(), active.sessionStartMillis + active.elapsedSeconds * 1000L)
+      val liveBlocks = getTenMinuteBlocksForRange(active.sessionStartMillis, liveEnd)
+      if ((hour to blockIdx) in liveBlocks) {
+        stopCurrentTimer()
+      }
+    }
+    val todayKey =
+      SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(currentTimeProvider()))
+    val todaySessions = latestPersistedState.sessions.filter { it.dateKey == todayKey }
+    return findSessionForTenMinuteBlock(todaySessions, hour, blockIdx)?.id
+  }
+
   private fun buildDashboardState(
     persisted: PersistedStudyState,
     timer: ActiveTimerState,
@@ -501,21 +517,46 @@ class MainScreenViewModel(
     for (hour in 0..23) {
       grid[hour] = MutableList(6) { null }
     }
-    val cal = Calendar.getInstance()
     sessions.forEach { session ->
       val color = subjectMap[session.subjectId]?.colorHex ?: 0xFFFF6B4A
-      var cursor = session.startTimeMillis
-      val end = session.endTimeMillis.coerceAtLeast(cursor + 1000L)
-      while (cursor <= end) {
-        cal.timeInMillis = cursor
-        val hour = cal.get(Calendar.HOUR_OF_DAY)
-        val minute = cal.get(Calendar.MINUTE)
-        val blockIdx = (minute / 10).coerceIn(0, 5)
+      getTenMinuteBlocksForRange(session.startTimeMillis, session.endTimeMillis).forEach {
+        (hour, blockIdx) ->
         grid[hour]?.set(blockIdx, color)
-        cursor += 60_000L // avanzar de minuto en minuto
       }
     }
     return grid
+  }
+}
+
+internal fun getTenMinuteBlocksForRange(
+  startTimeMillis: Long,
+  endTimeMillis: Long,
+): Set<Pair<Int, Int>> {
+  val blocks = LinkedHashSet<Pair<Int, Int>>()
+  val cal = Calendar.getInstance()
+  val end = endTimeMillis.coerceAtLeast(startTimeMillis + 1000L)
+  var cursor = startTimeMillis
+  while (cursor <= end) {
+    cal.timeInMillis = cursor
+    val hour = cal.get(Calendar.HOUR_OF_DAY)
+    val minute = cal.get(Calendar.MINUTE)
+    blocks.add(hour to (minute / 10).coerceIn(0, 5))
+    cursor += 60_000L
+  }
+  cal.timeInMillis = end
+  blocks.add(
+    cal.get(Calendar.HOUR_OF_DAY) to (cal.get(Calendar.MINUTE) / 10).coerceIn(0, 5)
+  )
+  return blocks
+}
+
+internal fun findSessionForTenMinuteBlock(
+  sessions: List<StudySession>,
+  hour: Int,
+  blockIdx: Int,
+): StudySession? {
+  return sessions.lastOrNull { session ->
+    (hour to blockIdx) in getTenMinuteBlocksForRange(session.startTimeMillis, session.endTimeMillis)
   }
 }
 
