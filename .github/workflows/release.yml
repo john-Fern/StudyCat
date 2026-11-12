@@ -37,8 +37,8 @@ jobs:
       - name: Prepare APK Artifact
         run: |
           mkdir -p release-artifacts
-          cp app/build/outputs/apk/debug/app-debug.apk release-artifacts/StudyCat.apk
-          cp app/build/outputs/apk/debug/app-debug.apk release-artifacts/StudyCat-${{ github.ref_name }}.apk
+          cp StudyCat.apk release-artifacts/StudyCat.apk
+          cp StudyCat.apk release-artifacts/StudyCat-${{ github.ref_name }}.apk
 
       - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4

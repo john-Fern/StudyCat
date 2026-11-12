@@ -2,7 +2,7 @@
 
 Aplicación nativa de Android desarrollada en **Kotlin** y **Jetpack Compose** para el seguimiento y gestión de tiempos de estudio por materias, totalmente libre de anuncios y con almacenamiento 100% local y privado.
 
-> ### 📲 [⬇️ TOCA AQUÍ PARA DESCARGAR StudyCat v1.2 DIRECTAMENTE EN TU CELULAR](https://github.com/john-Fern/StudyCat/raw/main/StudyCat.apk)
+> ### 📲 [⬇️ TOCA AQUÍ PARA DESCARGAR StudyCat v1.2.1 DIRECTAMENTE EN TU CELULAR](https://github.com/john-Fern/StudyCat/raw/main/StudyCat.apk)
 
 ---
 
