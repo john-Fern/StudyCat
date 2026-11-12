@@ -29,6 +29,19 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
+enum class PomodoroAlarmType {
+  FOCUS_COMPLETED,
+  BREAK_COMPLETED,
+}
+
+data class PomodoroAlarmState(
+  val id: Long,
+  val type: PomodoroAlarmType,
+  val completedPhase: PomodoroPhase,
+  val nextPhase: PomodoroPhase,
+  val subjectId: String? = null,
+)
+
 data class ActiveTimerState(
   val subjectId: String? = null,
   val sessionStartMillis: Long = 0L,
@@ -38,6 +51,7 @@ data class ActiveTimerState(
   val pomodoroPhase: PomodoroPhase = PomodoroPhase.FOCUS,
   val pomodoroTargetSeconds: Long = 25 * 60L,
   val isBreakRunning: Boolean = false,
+  val activeAlarm: PomodoroAlarmState? = null,
 ) {
   val isRunning: Boolean
     get() = subjectId != null || isBreakRunning
@@ -59,6 +73,7 @@ data class YptDashboardState(
   val lastEndTimeFormatted: String = "--:--",
   val dailyGoalMinutes: Int = 360,
   val activeTimer: ActiveTimerState = ActiveTimerState(),
+  val activeAlarm: PomodoroAlarmState? = null,
   // 24 horas (0..23) -> 6 bloques de 10 minutos cada una -> colorHex de la materia dominante
   val tenMinuteBlocks: Map<Int, List<Long?>> = emptyMap(),
   val selectedTheme: AppTheme = AppTheme.DARK_YPT,
@@ -226,6 +241,18 @@ class MainScreenViewModel(
         } else {
           config.shortBreakMinutes * 60L
         }
+      val alarm =
+        if (config.alarmEnabled) {
+          PomodoroAlarmState(
+            id = currentTimeProvider(),
+            type = PomodoroAlarmType.FOCUS_COMPLETED,
+            completedPhase = PomodoroPhase.FOCUS,
+            nextPhase = nextPhase,
+            subjectId = completedState.subjectId,
+          )
+        } else {
+          null
+        }
       _activeTimer.value =
         ActiveTimerState(
           subjectId = null,
@@ -233,9 +260,22 @@ class MainScreenViewModel(
           pomodoroPhase = nextPhase,
           pomodoroTargetSeconds = nextTargetSeconds,
           isBreakRunning = false,
+          activeAlarm = alarm,
         )
     } else {
       // Terminó un descanso -> volver a fase de Enfoque
+      val alarm =
+        if (config.alarmEnabled) {
+          PomodoroAlarmState(
+            id = currentTimeProvider(),
+            type = PomodoroAlarmType.BREAK_COMPLETED,
+            completedPhase = completedState.pomodoroPhase,
+            nextPhase = PomodoroPhase.FOCUS,
+            subjectId = null,
+          )
+        } else {
+          null
+        }
       _activeTimer.value =
         ActiveTimerState(
           subjectId = null,
@@ -243,7 +283,14 @@ class MainScreenViewModel(
           pomodoroPhase = PomodoroPhase.FOCUS,
           pomodoroTargetSeconds = config.focusMinutes * 60L,
           isBreakRunning = false,
+          activeAlarm = alarm,
         )
+    }
+  }
+
+  fun dismissAlarm() {
+    if (_activeTimer.value.activeAlarm != null) {
+      _activeTimer.value = _activeTimer.value.copy(activeAlarm = null)
     }
   }
 
@@ -352,8 +399,14 @@ class MainScreenViewModel(
     focusMinutes: Int,
     shortBreakMinutes: Int,
     longBreakMinutes: Int = 15,
+    alarmEnabled: Boolean = latestPersistedState.pomodoroConfig.alarmEnabled,
   ) {
-    dataRepository.updatePomodoroConfig(focusMinutes, shortBreakMinutes, longBreakMinutes)
+    dataRepository.updatePomodoroConfig(
+      focusMinutes = focusMinutes,
+      shortBreakMinutes = shortBreakMinutes,
+      longBreakMinutes = longBreakMinutes,
+      alarmEnabled = alarmEnabled,
+    )
     val current = _activeTimer.value
     if (!current.isRunning) {
       val updatedTarget =
@@ -501,6 +554,7 @@ class MainScreenViewModel(
       lastEndTimeFormatted = lastEndMillis?.let { timeFormat.format(Date(it)) } ?: "--:--",
       dailyGoalMinutes = persisted.dailyGoalMinutes,
       activeTimer = timer,
+      activeAlarm = timer.activeAlarm,
       tenMinuteBlocks = tenMinBlocks,
       selectedTheme = persisted.selectedTheme,
       timerMode = persisted.preferredTimerMode,

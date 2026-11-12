@@ -30,6 +30,7 @@ data class PomodoroConfig(
   val shortBreakMinutes: Int = 5,
   val longBreakMinutes: Int = 15,
   val cyclesBeforeLongBreak: Int = 4,
+  val alarmEnabled: Boolean = true,
 )
 
 @Serializable

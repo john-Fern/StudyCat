@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -53,6 +54,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -173,8 +175,9 @@ fun MainScreen(
   }
   val yptState by viewModel.yptState.collectAsStateWithLifecycle()
 
-  // Obliga al celular a NO apagar la pantalla mientras el cronómetro o pomodoro esté activo
-  KeepScreenOn(enabled = yptState.activeTimer.isRunning)
+  // Obliga al celular a NO apagar la pantalla mientras el cronómetro, pomodoro o alarma estén activos
+  KeepScreenOn(enabled = yptState.activeTimer.isRunning || yptState.activeAlarm != null)
+  PomodoroAlarmEffect(alarm = yptState.activeAlarm)
 
   if (yptState.activeTimer.isRunning && yptState.activeTimer.isOledFocusMode) {
     val activeSubject = yptState.subjects.find { it.id == yptState.activeTimer.subjectId }
@@ -216,6 +219,7 @@ fun MainScreen(
       onSkipPomodoroPhase = viewModel::skipPomodoroPhase,
       onResetPomodoro = viewModel::resetPomodoro,
       onUpdatePomodoroConfig = viewModel::updatePomodoroConfig,
+      onDismissAlarm = viewModel::dismissAlarm,
       modifier = modifier,
     )
   }
@@ -240,7 +244,8 @@ internal fun YptScaffold(
   onTogglePomodoroBreak: () -> Unit = {},
   onSkipPomodoroPhase: () -> Unit = {},
   onResetPomodoro: () -> Unit = {},
-  onUpdatePomodoroConfig: (Int, Int, Int) -> Unit = { _, _, _ -> },
+  onUpdatePomodoroConfig: (Int, Int, Int, Boolean) -> Unit = { _, _, _, _ -> },
+  onDismissAlarm: () -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
   val palette = remember(state.selectedTheme) { paletteForTheme(state.selectedTheme) }
@@ -384,9 +389,24 @@ internal fun YptScaffold(
       PomodoroConfigDialog(
         currentConfig = state.pomodoroConfig,
         onDismiss = { showPomodoroConfigDialog = false },
-        onConfirm = { focus, shortBrk, longBrk ->
-          onUpdatePomodoroConfig(focus, shortBrk, longBrk)
+        onConfirm = { focus, shortBrk, longBrk, alarmEnabled ->
+          onUpdatePomodoroConfig(focus, shortBrk, longBrk, alarmEnabled)
           showPomodoroConfigDialog = false
+        },
+      )
+    }
+
+    val activeAlarm = state.activeAlarm
+    if (activeAlarm != null) {
+      val alarmSubject = state.subjects.find { it.id == activeAlarm.subjectId }
+      PomodoroAlarmDialog(
+        alarm = activeAlarm,
+        subjectName = alarmSubject?.name,
+        pomodoroConfig = state.pomodoroConfig,
+        onDismiss = onDismissAlarm,
+        onStartBreakNow = {
+          onDismissAlarm()
+          onTogglePomodoroBreak()
         },
       )
     }
@@ -1488,11 +1508,12 @@ private fun ThemeSelectorDialog(
 private fun PomodoroConfigDialog(
   currentConfig: PomodoroConfig,
   onDismiss: () -> Unit,
-  onConfirm: (Int, Int, Int) -> Unit,
+  onConfirm: (Int, Int, Int, Boolean) -> Unit,
 ) {
   var focusText by remember { mutableStateOf(currentConfig.focusMinutes.toString()) }
   var shortBreakText by remember { mutableStateOf(currentConfig.shortBreakMinutes.toString()) }
   var longBreakText by remember { mutableStateOf(currentConfig.longBreakMinutes.toString()) }
+  var alarmEnabled by remember { mutableStateOf(currentConfig.alarmEnabled) }
 
   AlertDialog(
     onDismissRequest = onDismiss,
@@ -1560,6 +1581,32 @@ private fun PomodoroConfigDialog(
           singleLine = true,
           modifier = Modifier.fillMaxWidth(),
         )
+
+        Row(
+          modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f),
+          ) {
+            Icon(
+              imageVector = Icons.Default.NotificationsActive,
+              contentDescription = null,
+              modifier = Modifier.size(18.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+              text = "Alarma al terminar Pomodoro y descanso",
+              style = MaterialTheme.typography.bodySmall,
+            )
+          }
+          Switch(
+            checked = alarmEnabled,
+            onCheckedChange = { alarmEnabled = it },
+          )
+        }
       }
     },
     confirmButton = {
@@ -1568,7 +1615,7 @@ private fun PomodoroConfigDialog(
           val focus = focusText.toIntOrNull()?.coerceIn(1, 180) ?: 25
           val shortBrk = shortBreakText.toIntOrNull()?.coerceIn(1, 60) ?: 5
           val longBrk = longBreakText.toIntOrNull()?.coerceIn(1, 90) ?: 15
-          onConfirm(focus, shortBrk, longBrk)
+          onConfirm(focus, shortBrk, longBrk, alarmEnabled)
         }
       ) {
         Text("Guardar")
@@ -1576,6 +1623,97 @@ private fun PomodoroConfigDialog(
     },
     dismissButton = {
       TextButton(onClick = onDismiss) { Text("Cancelar") }
+    },
+  )
+}
+
+@Composable
+private fun PomodoroAlarmDialog(
+  alarm: PomodoroAlarmState,
+  subjectName: String?,
+  pomodoroConfig: PomodoroConfig,
+  onDismiss: () -> Unit,
+  onStartBreakNow: () -> Unit,
+) {
+  val isFocusCompleted = alarm.type == PomodoroAlarmType.FOCUS_COMPLETED
+  val breakMinutes =
+    if (alarm.nextPhase == PomodoroPhase.LONG_BREAK) {
+      pomodoroConfig.longBreakMinutes
+    } else {
+      pomodoroConfig.shortBreakMinutes
+    }
+
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = {
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+          imageVector = Icons.Default.NotificationsActive,
+          contentDescription = null,
+          tint = LocalPalette.current.accent,
+          modifier = Modifier.size(24.dp),
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+          text =
+            if (isFocusCompleted) {
+              "¡Pomodoro Completado! 🍅"
+            } else {
+              "¡Terminó el Descanso! 🐾"
+            },
+          fontWeight = FontWeight.Bold,
+        )
+      }
+    },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (isFocusCompleted) {
+          Text(
+            text =
+              if (!subjectName.isNullOrBlank()) {
+                "Completaste tu sesión de enfoque en \"$subjectName\"."
+              } else {
+                "Completaste tu sesión de enfoque."
+              },
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+          )
+          Text(
+            text =
+              "Siguiente fase: ${alarm.nextPhase.displayName} ($breakMinutes min). Toca abajo para iniciar tu descanso o detener la alarma.",
+            style = MaterialTheme.typography.bodySmall,
+          )
+        } else {
+          Text(
+            text = "Tu ${alarm.completedPhase.displayName.lowercase()} ha finalizado.",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+          )
+          Text(
+            text =
+              "¡Es hora de volver a concentrarse! Selecciona ▶ en tu materia para iniciar el siguiente Pomodoro de ${pomodoroConfig.focusMinutes} min.",
+            style = MaterialTheme.typography.bodySmall,
+          )
+        }
+      }
+    },
+    confirmButton = {
+      if (isFocusCompleted) {
+        Button(onClick = onStartBreakNow) {
+          Text("Iniciar descanso ($breakMinutes min) ☕")
+        }
+      } else {
+        Button(onClick = onDismiss) {
+          Text("¡Volver a estudiar! 🐱")
+        }
+      }
+    },
+    dismissButton = {
+      if (isFocusCompleted) {
+        TextButton(onClick = onDismiss) {
+          Text("Detener alarma")
+        }
+      }
     },
   )
 }

@@ -53,6 +53,7 @@ interface DataRepository {
     shortBreakMinutes: Int,
     longBreakMinutes: Int = 15,
     cyclesBeforeLongBreak: Int = 4,
+    alarmEnabled: Boolean = true,
   ) {}
 
   fun incrementCompletedPomodoros(dateKey: String? = null) {}
@@ -214,6 +215,7 @@ class DefaultDataRepository(context: Context? = null) : DataRepository {
     shortBreakMinutes: Int,
     longBreakMinutes: Int,
     cyclesBeforeLongBreak: Int,
+    alarmEnabled: Boolean,
   ) {
     val current = _studyState.value
     val newConfig =
@@ -222,6 +224,7 @@ class DefaultDataRepository(context: Context? = null) : DataRepository {
         shortBreakMinutes = shortBreakMinutes.coerceIn(1, 60),
         longBreakMinutes = longBreakMinutes.coerceIn(1, 90),
         cyclesBeforeLongBreak = cyclesBeforeLongBreak.coerceIn(1, 12),
+        alarmEnabled = alarmEnabled,
       )
     saveState(current.copy(pomodoroConfig = newConfig))
   }

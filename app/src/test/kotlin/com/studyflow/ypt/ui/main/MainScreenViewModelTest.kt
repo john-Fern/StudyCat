@@ -7,6 +7,7 @@ import com.studyflow.ypt.data.TimerMode
 import junit.framework.TestCase.assertEquals
 import junit.framework.TestCase.assertFalse
 import junit.framework.TestCase.assertNotNull
+import junit.framework.TestCase.assertNull
 import junit.framework.TestCase.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -394,6 +395,95 @@ class MainScreenViewModelTest {
     assertFalse(viewModel.yptState.value.activeTimer.isRunning)
     assertEquals(1, viewModel.yptState.value.todaySessions.size)
     assertEquals(selectedSessionId, viewModel.yptState.value.todaySessions.first().id)
+  }
+
+  @Test(timeout = 10_000L)
+  fun pomodoroAlarm_triggersWhenFocusEndsAndWhenBreakEnds_andCanBeDismissed() = runTest {
+    val baseTime = 1_700_000_000_000L
+    val repository = DefaultDataRepository(context = null)
+    val viewModel =
+      MainScreenViewModel(
+        repository,
+        currentTimeProvider = { baseTime + testScheduler.currentTime },
+        coroutineScope = backgroundScope,
+      )
+    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.yptState.collect {} }
+    runCurrent()
+
+    viewModel.setTimerMode(TimerMode.POMODORO)
+    viewModel.updatePomodoroConfig(focusMinutes = 1, shortBreakMinutes = 1, longBreakMinutes = 5)
+    runCurrent()
+
+    val subjectId = viewModel.yptState.value.subjects.first().id
+    viewModel.toggleSubjectTimer(subjectId)
+    runCurrent()
+    assertNull(viewModel.yptState.value.activeAlarm)
+
+    // Completar el Pomodoro de 1 minuto (60s)
+    advanceTimeBy(60_000L)
+    runCurrent()
+
+    val alarmAfterFocus = viewModel.yptState.value.activeAlarm
+    assertNotNull(alarmAfterFocus)
+    assertEquals(PomodoroAlarmType.FOCUS_COMPLETED, alarmAfterFocus?.type)
+    assertEquals(PomodoroPhase.FOCUS, alarmAfterFocus?.completedPhase)
+    assertEquals(PomodoroPhase.SHORT_BREAK, alarmAfterFocus?.nextPhase)
+    assertEquals(subjectId, alarmAfterFocus?.subjectId)
+
+    // Silenciar alarma manualmente
+    viewModel.dismissAlarm()
+    runCurrent()
+    assertNull(viewModel.yptState.value.activeAlarm)
+
+    // Iniciar descanso corto (1 minuto = 60s) y avanzar hasta que termine
+    viewModel.togglePomodoroBreak()
+    runCurrent()
+    assertTrue(viewModel.yptState.value.activeTimer.isBreakRunning)
+
+    advanceTimeBy(60_000L)
+    runCurrent()
+
+    val alarmAfterBreak = viewModel.yptState.value.activeAlarm
+    assertNotNull(alarmAfterBreak)
+    assertEquals(PomodoroAlarmType.BREAK_COMPLETED, alarmAfterBreak?.type)
+    assertEquals(PomodoroPhase.SHORT_BREAK, alarmAfterBreak?.completedPhase)
+    assertEquals(PomodoroPhase.FOCUS, alarmAfterBreak?.nextPhase)
+
+    viewModel.dismissAlarm()
+    runCurrent()
+    assertNull(viewModel.yptState.value.activeAlarm)
+  }
+
+  @Test(timeout = 10_000L)
+  fun pomodoroAlarm_doesNotTriggerWhenDisabledInConfig() = runTest {
+    val baseTime = 1_700_000_000_000L
+    val repository = DefaultDataRepository(context = null)
+    val viewModel =
+      MainScreenViewModel(
+        repository,
+        currentTimeProvider = { baseTime + testScheduler.currentTime },
+        coroutineScope = backgroundScope,
+      )
+    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.yptState.collect {} }
+    runCurrent()
+
+    viewModel.setTimerMode(TimerMode.POMODORO)
+    viewModel.updatePomodoroConfig(
+      focusMinutes = 1,
+      shortBreakMinutes = 1,
+      longBreakMinutes = 5,
+      alarmEnabled = false,
+    )
+    runCurrent()
+
+    val subjectId = viewModel.yptState.value.subjects.first().id
+    viewModel.toggleSubjectTimer(subjectId)
+    runCurrent()
+
+    advanceTimeBy(60_000L)
+    runCurrent()
+
+    assertNull(viewModel.yptState.value.activeAlarm)
   }
 
   @Test(timeout = 10_000L)
