@@ -1,17 +1,18 @@
 package com.studyflow.ypt
 
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.studyflow.ypt.ui.main.MainScreen
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 @Composable
-fun MainNavigation() {
+fun MainNavigation(
+  authCallbackUri: StateFlow<String?> = MutableStateFlow(null),
+  onAuthCallbackHandled: () -> Unit = {},
+) {
   val backStack = rememberNavBackStack(Main)
 
   NavDisplay(
@@ -20,7 +21,11 @@ fun MainNavigation() {
     entryProvider =
       entryProvider {
         entry<Main> {
-          MainScreen(onItemClick = { navKey -> backStack.add(navKey) })
+          MainScreen(
+            onItemClick = { navKey -> backStack.add(navKey) },
+            authCallbackUri = authCallbackUri,
+            onAuthCallbackHandled = onAuthCallbackHandled,
+          )
         }
       },
   )

@@ -57,6 +57,9 @@ interface DataRepository {
   ) {}
 
   fun incrementCompletedPomodoros(dateKey: String? = null) {}
+
+  /** Reemplaza todo el estado (usado al fusionar con el respaldo de la nube). */
+  fun replaceState(newState: PersistedStudyState) {}
 }
 
 class DefaultDataRepository(context: Context? = null) : DataRepository {
@@ -235,5 +238,9 @@ class DefaultDataRepository(context: Context? = null) : DataRepository {
     val updatedMap = current.completedPomodorosByDate.toMutableMap()
     updatedMap[key] = (updatedMap[key] ?: 0) + 1
     saveState(current.copy(completedPomodorosByDate = updatedMap))
+  }
+
+  override fun replaceState(newState: PersistedStudyState) {
+    saveState(newState)
   }
 }

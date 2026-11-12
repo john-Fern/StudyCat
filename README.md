@@ -1,42 +1,45 @@
 # StudyCat 🐱
 
-Aplicación nativa de Android desarrollada en **Kotlin** y **Jetpack Compose** para el seguimiento y gestión de tiempos de estudio por materias, totalmente libre de anuncios y con almacenamiento 100% local y privado.
+Aplicación nativa de Android desarrollada en **Kotlin** y **Jetpack Compose** para el seguimiento y gestión de tiempos de estudio por materias, totalmente libre de anuncios, con arquitectura **local-first** y respaldo opcional y seguro en la nube con **Supabase** (PostgreSQL + Row Level Security).
 
-> ### 📲 [⬇️ TOCA AQUÍ PARA DESCARGAR StudyCat v1.3.0 DIRECTAMENTE EN TU CELULAR](https://github.com/john-Fern/StudyCat/raw/main/StudyCat.apk)
+> ### 📲 [⬇️ TOCA AQUÍ PARA DESCARGAR StudyCat v1.4.0 DIRECTAMENTE EN TU CELULAR](https://github.com/john-Fern/StudyCat/raw/main/StudyCat.apk)
 
 ---
 
 ## ✨ Características Principales
 
 1. **Gestión Completa de Materias y Bloques**:
-   - Crea materias con metas diarias de estudio personalizadas.
-   - Selección de colores distintivos por materia.
-   - **Edición completa de materias**: Modifica el nombre, meta diaria en minutos y color en cualquier momento tocando la materia o el botón de edición.
-   - **Edición de bloques estudiados**: Si iniciaste una sesión por error o necesitas corregir su finalización, puedes tocar cualquier bloque registrado para eliminarlo o ajustar su hora de término.
+   - Crea materias con metas diarias de estudio personalizadas y selección de colores distintivos.
+   - **Edición completa de materias**: Modifica nombre, meta diaria y color en cualquier momento.
+   - **Edición interactiva de bloques estudiados**: Corrige el tiempo de término o elimina cualquier bloque directamente desde la lista o tocando el bloque en el Timeline de 10 minutos.
 
-2. **Doble Modo de Temporizador**:
-   - **Cronómetro Progresivo**: Cuenta progresiva por materia con guardado automático al pausar o detener.
-   - **Temporizador Pomodoro**: Fases estructuradas de *Enfoque*, *Descanso Corto* y *Descanso Largo*. Configuración flexible de duración y ciclos.
+2. **Doble Modo de Temporizador y Alarmas**:
+   - **Cronómetro Progresivo**: Registro de tiempo por materia con guardado automático.
+   - **Temporizador Pomodoro**: Fases de *Enfoque*, *Descanso Corto* y *Descanso Largo*.
+   - **Alarmas Automáticas**: Notificación visual en pantalla, tono en canal de alarma del sistema y vibración continua al finalizar el tiempo de enfoque o descanso.
 
-3. **Herramientas de Enfoque**:
-   - **Modo Pantalla Negra (OLED)**: Ahorro máximo de batería en pantallas AMOLED con visualización minimalista en fondo negro puro.
-   - **Pantalla Siempre Activa (`KeepScreenOn`)**: Mantiene la pantalla encendida automáticamente mientras el temporizador o descanso está activo.
+3. **Respaldo en la Nube y Sincronización Segura**:
+   - Inicia sesión con **Google** (OAuth 2.0 con PKCE) o con **Correo y Contraseña**.
+   - Respaldo automático debounced en **Supabase** (PostgreSQL).
+   - **Máxima Seguridad**: Políticas de Row Level Security (RLS) estrictas (`auth.uid() = user_id`) y almacenamiento de tokens cifrado por hardware en el dispositivo con **AndroidKeyStore** (AES-256-GCM).
+   - **Local-first**: Tus datos nunca se pierden; si no hay internet o cierras sesión, tu información permanece intacta en el teléfono.
+   - **Derecho al olvido**: Botón para eliminar tu respaldo de la nube en cualquier momento.
 
-4. **Estadísticas Detalladas**:
+4. **Herramientas de Enfoque**:
+   - **Modo Pantalla Negra (OLED)**: Ahorro máximo de batería en pantallas AMOLED con fondo `#000000`.
+   - **Pantalla Siempre Activa (`KeepScreenOn`)**: Mantiene la pantalla encendida automáticamente mientras estudias o descansas.
+
+5. **Estadísticas Detalladas**:
    - Métricas diarias: Tiempo total de estudio, cantidad de sesiones, pomodoros completados y racha continua máxima.
-   - **Timeline de 10 Minutos**: Cuadrícula de 24 horas dividida en bloques de 10 minutos que pinta la materia dominante en cada intervalo.
+   - **Timeline Interactivo de 10 Minutos**: Visualización de 24 horas dividida en bloques de 10 minutos con acceso táctil al editor de bloques.
    - Gráfico de distribución porcentual por materia.
 
-5. **Temas Visuales**:
-   - *Noche Coral*: Tema oscuro con acentos en tono coral.
+6. **5 Temas Visuales**:
+   - *Noche Coral*: Tema oscuro clásico con acento coral.
    - *Gatito Sakura*: Estilo pastel kawaii en tonos crema y rosa.
    - *Papel Estudio*: Tema claro minimalista para lectura diurna.
    - *Medianoche*: Fondo ultra oscuro con acentos en cian neón.
    - *Bosque Matcha*: Tonos verdes salvia para descanso visual.
-
-6. **Privacidad y Modo Offline**:
-   - Funciona sin conexión a internet y sin recolección de datos personales.
-   - Almacenamiento local mediante serialización JSON (`kotlinx.serialization`).
 
 ---
 

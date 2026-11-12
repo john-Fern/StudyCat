@@ -10,24 +10,36 @@ import com.studyflow.ypt.data.PomodoroPhase
 import com.studyflow.ypt.data.StudySession
 import com.studyflow.ypt.data.Subject
 import com.studyflow.ypt.data.TimerMode
+import com.studyflow.ypt.data.cloud.CloudAccountUiState
+import com.studyflow.ypt.data.cloud.CloudSyncService
+import com.studyflow.ypt.data.cloud.CloudSyncStatus
+import com.studyflow.ypt.data.cloud.SessionExpiredException
+import com.studyflow.ypt.data.cloud.mergeStudyStates
+import com.studyflow.ypt.data.cloud.sanitizeStudyState
 import com.studyflow.ypt.ui.main.MainScreenUiState.Success
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+
+/** Espera tras el último cambio local antes de subir el respaldo (agrupa cambios seguidos). */
+internal const val AUTO_SYNC_DEBOUNCE_MILLIS = 3_000L
 
 enum class PomodoroAlarmType {
   FOCUS_COMPLETED,
@@ -86,8 +98,14 @@ class MainScreenViewModel(
   private val dataRepository: DataRepository,
   private val currentTimeProvider: () -> Long = { System.currentTimeMillis() },
   coroutineScope: CoroutineScope? = null,
+  private val cloudSyncService: CloudSyncService? = null,
 ) : ViewModel() {
   private val scope: CoroutineScope = coroutineScope ?: viewModelScope
+
+  private val _cloudAccount = MutableStateFlow(CloudAccountUiState())
+  val cloudAccountState: StateFlow<CloudAccountUiState> = _cloudAccount.asStateFlow()
+  private var lastSyncedState: PersistedStudyState? = null
+  private var syncJob: Job? = null
 
   val uiState: StateFlow<MainScreenUiState> =
     dataRepository.data
@@ -121,6 +139,156 @@ class MainScreenViewModel(
         buildDashboardState(persisted, syncedTimer)
       }
       .stateIn(scope, SharingStarted.WhileSubscribed(5000), YptDashboardState())
+
+  init {
+    if (cloudSyncService != null) {
+      cloudSyncService.loadSavedSession()?.let { saved ->
+        _cloudAccount.value = CloudAccountUiState(isSignedIn = true, userEmail = saved.email)
+        syncNow()
+      }
+      startAutoUpload()
+    }
+  }
+
+  // ---------- Cuenta y respaldo en la nube ----------
+
+  fun signInWithEmail(email: String, password: String) {
+    val service = cloudSyncService ?: return
+    runAuth { onSignedIn(service.signInWithEmail(email, password).getOrThrow().email) }
+  }
+
+  fun signUpWithEmail(email: String, password: String) {
+    val service = cloudSyncService ?: return
+    runAuth {
+      val session = service.signUpWithEmail(email, password).getOrThrow()
+      if (session != null) {
+        onSignedIn(session.email)
+      } else {
+        _cloudAccount.value =
+          CloudAccountUiState(
+            infoMessage = "¡Cuenta creada! Revisa tu correo y confirma el enlace; luego inicia sesión aquí."
+          )
+      }
+    }
+  }
+
+  /** Devuelve la URL que la UI debe abrir en el navegador para iniciar sesión con Google. */
+  fun startGoogleSignIn(): String? = cloudSyncService?.createGoogleSignInUrl()
+
+  fun completeGoogleSignIn(callbackUri: String) {
+    val service = cloudSyncService ?: return
+    runAuth { onSignedIn(service.completeGoogleSignIn(callbackUri).getOrThrow().email) }
+  }
+
+  fun signOut() {
+    val service = cloudSyncService ?: return
+    scope.launch {
+      syncJob?.cancel()
+      service.signOut()
+      lastSyncedState = null
+      // Los datos locales se conservan: la app sigue funcionando 100% offline
+      _cloudAccount.value = CloudAccountUiState(infoMessage = "Sesión cerrada. Tus datos siguen en este dispositivo.")
+    }
+  }
+
+  /** Borra el respaldo del usuario en la nube (derecho al olvido) y cierra la sesión. */
+  fun deleteCloudData() {
+    val service = cloudSyncService ?: return
+    scope.launch {
+      syncJob?.cancel()
+      _cloudAccount.value = _cloudAccount.value.copy(isLoading = true, errorMessage = null)
+      service
+        .deleteCloudStudyState()
+        .onSuccess {
+          service.signOut()
+          lastSyncedState = null
+          _cloudAccount.value =
+            CloudAccountUiState(infoMessage = "Tu respaldo en la nube fue eliminado. Los datos locales se conservan.")
+        }
+        .onFailure { showCloudError(it) }
+    }
+  }
+
+  fun clearCloudMessages() {
+    _cloudAccount.value = _cloudAccount.value.copy(errorMessage = null, infoMessage = null)
+  }
+
+  /** Descarga el respaldo, lo fusiona sin pérdida con los datos locales y sube el resultado. */
+  fun syncNow() {
+    val service = cloudSyncService ?: return
+    if (!_cloudAccount.value.isSignedIn) return
+    syncJob?.cancel()
+    syncJob =
+      scope.launch {
+        _cloudAccount.value = _cloudAccount.value.copy(syncStatus = CloudSyncStatus.SYNCING, errorMessage = null)
+        val remote =
+          service.fetchStudyState().getOrElse {
+            showCloudError(it)
+            return@launch
+          }
+        val local = latestPersistedState
+        val merged =
+          if (remote == null) local else sanitizeStudyState(mergeStudyStates(local, sanitizeStudyState(remote)))
+        if (merged != local) dataRepository.replaceState(merged)
+        uploadState(merged)
+      }
+  }
+
+  @OptIn(FlowPreview::class)
+  private fun startAutoUpload() {
+    scope.launch {
+      dataRepository.studyState.debounce(AUTO_SYNC_DEBOUNCE_MILLIS).collect { state ->
+        val account = _cloudAccount.value
+        if (account.isSignedIn && account.syncStatus != CloudSyncStatus.SYNCING && state != lastSyncedState) {
+          uploadState(state)
+        }
+      }
+    }
+  }
+
+  private suspend fun uploadState(state: PersistedStudyState) {
+    val service = cloudSyncService ?: return
+    service
+      .pushStudyState(state)
+      .onSuccess {
+        lastSyncedState = state
+        val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(currentTimeProvider()))
+        _cloudAccount.value =
+          _cloudAccount.value.copy(syncStatus = CloudSyncStatus.SYNCED, lastSyncedAtFormatted = time, errorMessage = null)
+      }
+      .onFailure { showCloudError(it) }
+  }
+
+  private fun onSignedIn(email: String) {
+    _cloudAccount.value = CloudAccountUiState(isSignedIn = true, userEmail = email)
+    syncNow()
+  }
+
+  private fun runAuth(block: suspend () -> Unit) {
+    scope.launch {
+      _cloudAccount.value = _cloudAccount.value.copy(isLoading = true, errorMessage = null, infoMessage = null)
+      try {
+        block()
+      } catch (e: Exception) {
+        _cloudAccount.value = CloudAccountUiState(errorMessage = e.message ?: "No se pudo iniciar sesión.")
+      }
+    }
+  }
+
+  private fun showCloudError(error: Throwable) {
+    _cloudAccount.value =
+      if (error is SessionExpiredException) {
+        CloudAccountUiState(errorMessage = error.message)
+      } else {
+        _cloudAccount.value.copy(
+          isLoading = false,
+          syncStatus = CloudSyncStatus.ERROR,
+          errorMessage = error.message ?: "No se pudo sincronizar. Tus datos siguen en el dispositivo.",
+        )
+      }
+  }
+
+  // ---------- Temporizadores ----------
 
   fun toggleSubjectTimer(subjectId: String) {
     val current = _activeTimer.value

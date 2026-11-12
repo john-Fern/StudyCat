@@ -57,13 +57,14 @@ jobs:
             ¡Versión lista para instalar en Android!
             
             ### ✨ Funcionalidades incluidas
+            - ☁️ **Respaldo en la Nube Seguro**: Inicio de sesión con Google (OAuth 2.0 PKCE) o Correo/Contraseña en Supabase (PostgreSQL con Row Level Security y cifrado AndroidKeyStore).
             - ⏱️ **Cronómetro Progresivo**: Registro de tiempo de estudio por materia.
-            - 🍅 **Temporizador Pomodoro**: Fases de Enfoque, Descanso Corto y Descanso Largo.
+            - 🍅 **Temporizador Pomodoro con Alarmas**: Fases de Enfoque, Descanso Corto y Largo con aviso sonoro y vibración continua.
             - ✏️ **Edición de Materias y Bloques desde el Timeline**: Edita materias o toca cualquier bloque estudiado en el Timeline de 10 minutos para ajustar su tiempo de término o eliminarlo.
             - 🖤 **Modo Pantalla Negra (OLED)**: Máximo ahorro de batería con fondo negro puro `#000000`.
             - 📊 **Timeline de 10 Minutos**: Visualización diaria interactiva dividida en 6 bloques por hora.
             - 🎨 **5 Temas Visuales**: Noche Coral, Gatito Sakura, Papel Estudio, Medianoche y Bosque Matcha.
-            - 🔒 **100% Offline y Sin Anuncios**: Tu información se almacena localmente en tu dispositivo.
+            - 🔒 **Local-first y 100% Sin Anuncios**: Tu información se almacena localmente y funciona sin conexión a internet.
             
             ### 📲 Instalación
             Descarga el archivo `StudyCat-${{ github.ref_name }}.apk` adjunto abajo e instálalo en tu teléfono.

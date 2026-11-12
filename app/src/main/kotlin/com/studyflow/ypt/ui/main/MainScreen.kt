@@ -1,5 +1,7 @@
 package com.studyflow.ypt.ui.main
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,28 +23,41 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.CloudQueue
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -52,13 +67,16 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -77,6 +95,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -92,11 +112,16 @@ import com.studyflow.ypt.data.StudySession
 import com.studyflow.ypt.data.Subject
 import com.studyflow.ypt.data.SubjectColorPalette
 import com.studyflow.ypt.data.TimerMode
+import com.studyflow.ypt.data.cloud.CloudAccountUiState
+import com.studyflow.ypt.data.cloud.CloudSyncStatus
+import com.studyflow.ypt.data.cloud.SupabaseCloudSyncService
 import com.studyflow.ypt.ui.theme.StudyFlowTheme
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 data class StudyCatPalette(
   val bg: Color,
@@ -167,13 +192,25 @@ private val LocalPalette = compositionLocalOf { paletteForTheme(AppTheme.DARK_YP
 @Composable
 fun MainScreen(
   onItemClick: (NavKey) -> Unit,
+  authCallbackUri: StateFlow<String?> = MutableStateFlow(null),
+  onAuthCallbackHandled: () -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
   val context = LocalContext.current.applicationContext
   val viewModel: MainScreenViewModel = viewModel {
-    MainScreenViewModel(DefaultDataRepository(context))
+    val cloudService = SupabaseCloudSyncService(context = context)
+    MainScreenViewModel(DefaultDataRepository(context), cloudSyncService = cloudService)
   }
   val yptState by viewModel.yptState.collectAsStateWithLifecycle()
+  val cloudAccount by viewModel.cloudAccountState.collectAsStateWithLifecycle()
+  val incomingCallback by authCallbackUri.collectAsStateWithLifecycle()
+
+  LaunchedEffect(incomingCallback) {
+    incomingCallback?.let { uri ->
+      viewModel.completeGoogleSignIn(uri)
+      onAuthCallbackHandled()
+    }
+  }
 
   // Obliga al celular a NO apagar la pantalla mientras el cronómetro, pomodoro o alarma estén activos
   KeepScreenOn(enabled = yptState.activeTimer.isRunning || yptState.activeAlarm != null)
@@ -205,6 +242,7 @@ fun MainScreen(
   } else {
     YptScaffold(
       state = yptState,
+      cloudAccount = cloudAccount,
       onToggleSubject = viewModel::toggleSubjectTimer,
       onAddSubject = viewModel::addSubject,
       onUpdateSubject = viewModel::updateSubject,
@@ -220,6 +258,13 @@ fun MainScreen(
       onResetPomodoro = viewModel::resetPomodoro,
       onUpdatePomodoroConfig = viewModel::updatePomodoroConfig,
       onDismissAlarm = viewModel::dismissAlarm,
+      onSignInWithEmail = viewModel::signInWithEmail,
+      onSignUpWithEmail = viewModel::signUpWithEmail,
+      onStartGoogleSignIn = viewModel::startGoogleSignIn,
+      onSyncNow = viewModel::syncNow,
+      onSignOut = viewModel::signOut,
+      onDeleteCloudData = viewModel::deleteCloudData,
+      onClearCloudMessages = viewModel::clearCloudMessages,
       modifier = modifier,
     )
   }
@@ -229,6 +274,7 @@ fun MainScreen(
 @Composable
 internal fun YptScaffold(
   state: YptDashboardState,
+  cloudAccount: CloudAccountUiState = CloudAccountUiState(),
   onToggleSubject: (String) -> Unit,
   onAddSubject: (String, Long, Int) -> Unit,
   onUpdateSubject: (String, String, Long, Int) -> Unit = { _, _, _, _ -> },
@@ -246,8 +292,16 @@ internal fun YptScaffold(
   onResetPomodoro: () -> Unit = {},
   onUpdatePomodoroConfig: (Int, Int, Int, Boolean) -> Unit = { _, _, _, _ -> },
   onDismissAlarm: () -> Unit = {},
+  onSignInWithEmail: (String, String) -> Unit = { _, _ -> },
+  onSignUpWithEmail: (String, String) -> Unit = { _, _ -> },
+  onStartGoogleSignIn: () -> String? = { null },
+  onSyncNow: () -> Unit = {},
+  onSignOut: () -> Unit = {},
+  onDeleteCloudData: () -> Unit = {},
+  onClearCloudMessages: () -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
+  val context = LocalContext.current
   val palette = remember(state.selectedTheme) { paletteForTheme(state.selectedTheme) }
   var selectedTab by rememberSaveable { mutableIntStateOf(0) }
   var showAddDialog by rememberSaveable { mutableStateOf(false) }
@@ -255,6 +309,7 @@ internal fun YptScaffold(
   var editingSessionId by rememberSaveable { mutableStateOf<String?>(null) }
   var showThemeDialog by rememberSaveable { mutableStateOf(false) }
   var showPomodoroConfigDialog by rememberSaveable { mutableStateOf(false) }
+  var showCloudDialog by rememberSaveable { mutableStateOf(false) }
 
   CompositionLocalProvider(LocalPalette provides palette) {
     Scaffold(
@@ -307,6 +362,8 @@ internal fun YptScaffold(
       if (selectedTab == 0) {
         TimerTabContent(
           state = state,
+          cloudAccount = cloudAccount,
+          onOpenCloudAccount = { showCloudDialog = true },
           onToggleSubject = onToggleSubject,
           onEditSubject = { id -> editingSubjectId = id },
           onDeleteSubject = onDeleteSubject,
@@ -323,6 +380,8 @@ internal fun YptScaffold(
       } else {
         StatsTabContent(
           state = state,
+          cloudAccount = cloudAccount,
+          onOpenCloudAccount = { showCloudDialog = true },
           onOpenThemeSelector = { showThemeDialog = true },
           onEditSession = { id -> editingSessionId = id },
           onSelectTimelineBlock = { hour, blockIdx ->
@@ -396,6 +455,31 @@ internal fun YptScaffold(
       )
     }
 
+    if (showCloudDialog) {
+      CloudAccountDialog(
+        account = cloudAccount,
+        onDismiss = {
+          onClearCloudMessages()
+          showCloudDialog = false
+        },
+        onSignInWithEmail = onSignInWithEmail,
+        onSignUpWithEmail = onSignUpWithEmail,
+        onStartGoogleSignIn = {
+          val url = onStartGoogleSignIn()
+          if (url != null) {
+            try {
+              val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+              context.startActivity(intent)
+            } catch (_: Exception) {}
+          }
+        },
+        onSyncNow = onSyncNow,
+        onSignOut = onSignOut,
+        onDeleteCloudData = onDeleteCloudData,
+        onClearMessages = onClearCloudMessages,
+      )
+    }
+
     val activeAlarm = state.activeAlarm
     if (activeAlarm != null) {
       val alarmSubject = state.subjects.find { it.id == activeAlarm.subjectId }
@@ -416,6 +500,8 @@ internal fun YptScaffold(
 @Composable
 private fun TimerTabContent(
   state: YptDashboardState,
+  cloudAccount: CloudAccountUiState = CloudAccountUiState(),
+  onOpenCloudAccount: () -> Unit = {},
   onToggleSubject: (String) -> Unit,
   onEditSubject: (String) -> Unit,
   onDeleteSubject: (String) -> Unit,
@@ -499,6 +585,49 @@ private fun TimerTabContent(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
           ) {
+            // Botón Nube / Cuenta
+            Surface(
+              color = palette.subtleSurface,
+              shape = RoundedCornerShape(50),
+              modifier =
+                Modifier.clip(RoundedCornerShape(50))
+                  .clickable { onOpenCloudAccount() }
+                  .semantics { contentDescription = "Cuenta y respaldo en la nube" },
+            ) {
+              Row(
+                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                Icon(
+                  imageVector =
+                    if (cloudAccount.isSignedIn) {
+                      if (cloudAccount.syncStatus == CloudSyncStatus.SYNCING) {
+                        Icons.Default.CloudSync
+                      } else {
+                        Icons.Default.CloudDone
+                      }
+                    } else {
+                      Icons.Default.CloudQueue
+                    },
+                  contentDescription = null,
+                  tint =
+                    if (cloudAccount.isSignedIn) {
+                      if (cloudAccount.syncStatus == CloudSyncStatus.ERROR) Color(0xFFEF4444) else Color(0xFF10B981)
+                    } else {
+                      palette.accent
+                    },
+                  modifier = Modifier.size(13.dp),
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                  text = if (cloudAccount.isSignedIn) "Nube" else "Cuenta",
+                  color = palette.textPrimary,
+                  fontSize = 11.sp,
+                  fontWeight = FontWeight.SemiBold,
+                )
+              }
+            }
+
             // Botón para cambiar el Tema
             Surface(
               color = palette.subtleSurface,
@@ -1064,6 +1193,8 @@ private fun SubjectRowCard(
 @Composable
 private fun StatsTabContent(
   state: YptDashboardState,
+  cloudAccount: CloudAccountUiState = CloudAccountUiState(),
+  onOpenCloudAccount: () -> Unit = {},
   onOpenThemeSelector: () -> Unit,
   onEditSession: (String) -> Unit = {},
   onSelectTimelineBlock: (Int, Int) -> Unit = { _, _ -> },
@@ -1090,15 +1221,50 @@ private fun StatsTabContent(
           fontSize = 22.sp,
           fontWeight = FontWeight.Bold,
         )
-        TextButton(onClick = onOpenThemeSelector) {
-          Icon(
-            Icons.Default.Palette,
-            contentDescription = null,
-            tint = palette.accent,
-            modifier = Modifier.size(16.dp),
-          )
-          Spacer(modifier = Modifier.width(4.dp))
-          Text(state.selectedTheme.displayName, color = palette.accent, fontSize = 12.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          TextButton(onClick = onOpenCloudAccount) {
+            Icon(
+              imageVector =
+                if (cloudAccount.isSignedIn) {
+                  if (cloudAccount.syncStatus == CloudSyncStatus.SYNCING) {
+                    Icons.Default.CloudSync
+                  } else {
+                    Icons.Default.CloudDone
+                  }
+                } else {
+                  Icons.Default.CloudQueue
+                },
+              contentDescription = null,
+              tint =
+                if (cloudAccount.isSignedIn) {
+                  if (cloudAccount.syncStatus == CloudSyncStatus.ERROR) Color(0xFFEF4444) else Color(0xFF10B981)
+                } else {
+                  palette.accent
+                },
+              modifier = Modifier.size(16.dp),
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+              text = if (cloudAccount.isSignedIn) "Nube" else "Cuenta",
+              color =
+                if (cloudAccount.isSignedIn) {
+                  if (cloudAccount.syncStatus == CloudSyncStatus.ERROR) Color(0xFFEF4444) else Color(0xFF10B981)
+                } else {
+                  palette.accent
+                },
+              fontSize = 12.sp,
+            )
+          }
+          TextButton(onClick = onOpenThemeSelector) {
+            Icon(
+              Icons.Default.Palette,
+              contentDescription = null,
+              tint = palette.accent,
+              modifier = Modifier.size(16.dp),
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(state.selectedTheme.displayName, color = palette.accent, fontSize = 12.sp)
+          }
         }
       }
     }
@@ -2105,6 +2271,317 @@ private fun EditSessionDialog(
     },
     dismissButton = {
       TextButton(onClick = onDismiss) { Text("Cancelar") }
+    },
+  )
+}
+
+@Composable
+private fun CloudAccountDialog(
+  account: CloudAccountUiState,
+  onDismiss: () -> Unit,
+  onSignInWithEmail: (String, String) -> Unit,
+  onSignUpWithEmail: (String, String) -> Unit,
+  onStartGoogleSignIn: () -> Unit,
+  onSyncNow: () -> Unit,
+  onSignOut: () -> Unit,
+  onDeleteCloudData: () -> Unit,
+  onClearMessages: () -> Unit,
+) {
+  val palette = LocalPalette.current
+  var selectedTabIndex by remember { mutableIntStateOf(0) }
+  var email by remember { mutableStateOf("") }
+  var password by remember { mutableStateOf("") }
+  var passwordVisible by remember { mutableStateOf(false) }
+  var showDeleteConfirmation by remember { mutableStateOf(false) }
+
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = {
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+          imageVector = if (account.isSignedIn) Icons.Default.CloudDone else Icons.Default.Cloud,
+          contentDescription = null,
+          tint = if (account.isSignedIn) Color(0xFF10B981) else palette.accent,
+          modifier = Modifier.size(24.dp),
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+          text = if (account.isSignedIn) "Respaldo en la Nube 🐾" else "Iniciar Sesión en StudyCat 🐱",
+          fontWeight = FontWeight.Bold,
+          fontSize = 18.sp,
+        )
+      }
+    },
+    text = {
+      Column(
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth(),
+      ) {
+        if (account.errorMessage != null) {
+          Surface(
+            color = Color(0xFFEF4444).copy(alpha = 0.12f),
+            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier.fillMaxWidth(),
+          ) {
+            Text(
+              text = account.errorMessage,
+              color = Color(0xFFEF4444),
+              fontSize = 12.sp,
+              modifier = Modifier.padding(10.dp),
+            )
+          }
+        }
+
+        if (account.infoMessage != null) {
+          Surface(
+            color = Color(0xFF10B981).copy(alpha = 0.12f),
+            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier.fillMaxWidth(),
+          ) {
+            Text(
+              text = account.infoMessage,
+              color = Color(0xFF10B981),
+              fontSize = 12.sp,
+              modifier = Modifier.padding(10.dp),
+            )
+          }
+        }
+
+        if (account.isSignedIn) {
+          Text(
+            text = "Conectado como: ${account.userEmail ?: ""}",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+          )
+
+          Surface(
+            color = palette.subtleSurface,
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.fillMaxWidth(),
+          ) {
+            Row(
+              modifier = Modifier.padding(12.dp),
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+              when (account.syncStatus) {
+                CloudSyncStatus.SYNCING -> {
+                  CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                  Text("Sincronizando con la nube...", fontSize = 12.sp)
+                }
+                CloudSyncStatus.SYNCED -> {
+                  Icon(
+                    Icons.Default.CloudDone,
+                    contentDescription = null,
+                    tint = Color(0xFF10B981),
+                    modifier = Modifier.size(16.dp),
+                  )
+                  Text(
+                    text = "Sincronizado ${account.lastSyncedAtFormatted?.let { "a las $it" } ?: "correctamente"}",
+                    fontSize = 12.sp,
+                    color = Color(0xFF10B981),
+                  )
+                }
+                CloudSyncStatus.ERROR -> {
+                  Icon(
+                    Icons.Default.CloudOff,
+                    contentDescription = null,
+                    tint = Color(0xFFEF4444),
+                    modifier = Modifier.size(16.dp),
+                  )
+                  Text("Error al sincronizar.", fontSize = 12.sp, color = Color(0xFFEF4444))
+                }
+                CloudSyncStatus.OFFLINE_LOCAL_ONLY -> {
+                  Icon(
+                    Icons.Default.CloudQueue,
+                    contentDescription = null,
+                    tint = palette.textSecondary,
+                    modifier = Modifier.size(16.dp),
+                  )
+                  Text("Modo local.", fontSize = 12.sp, color = palette.textSecondary)
+                }
+              }
+            }
+          }
+
+          Button(
+            onClick = onSyncNow,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !account.isLoading && account.syncStatus != CloudSyncStatus.SYNCING,
+          ) {
+            Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("Sincronizar ahora")
+          }
+
+          OutlinedButton(
+            onClick = onSignOut,
+            modifier = Modifier.fillMaxWidth(),
+          ) {
+            Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("Cerrar sesión")
+          }
+
+          if (!showDeleteConfirmation) {
+            TextButton(
+              onClick = { showDeleteConfirmation = true },
+              modifier = Modifier.fillMaxWidth(),
+            ) {
+              Text(
+                text = "Eliminar mi respaldo de la nube",
+                color = Color(0xFFEF4444),
+                fontSize = 12.sp,
+              )
+            }
+          } else {
+            Column(
+              verticalArrangement = Arrangement.spacedBy(4.dp),
+              modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            ) {
+              Text(
+                text = "¿Confirmas borrar tu respaldo de la nube? Tus datos locales se conservarán.",
+                fontSize = 11.sp,
+                color = Color(0xFFEF4444),
+              )
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+              ) {
+                TextButton(onClick = { showDeleteConfirmation = false }) {
+                  Text("Cancelar", fontSize = 12.sp)
+                }
+                Button(
+                  onClick = {
+                    showDeleteConfirmation = false
+                    onDeleteCloudData()
+                  },
+                  colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                ) {
+                  Text("Sí, eliminar", fontSize = 12.sp)
+                }
+              }
+            }
+          }
+
+          Text(
+            text = "🔒 Tus datos se respaldan en Supabase mediante PostgreSQL con Row Level Security (RLS) y tus credenciales locales se cifran por hardware con AndroidKeyStore (AES-256-GCM).",
+            style = MaterialTheme.typography.bodySmall,
+            color = palette.textSecondary,
+            fontSize = 10.sp,
+          )
+        } else {
+          Text(
+            text = "Inicia sesión para respaldar tus materias y sesiones en la nube. ¡100% gratuito y privado!",
+            style = MaterialTheme.typography.bodySmall,
+            color = palette.textSecondary,
+          )
+
+          Button(
+            onClick = onStartGoogleSignIn,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4285F4)),
+          ) {
+            Text("Continuar con Google 🌐", fontWeight = FontWeight.Bold)
+          }
+
+          Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            HorizontalDivider(modifier = Modifier.weight(1f), color = palette.subtleSurface)
+            Text(
+              text = " O usa tu correo ",
+              color = palette.textSecondary,
+              fontSize = 11.sp,
+            )
+            HorizontalDivider(modifier = Modifier.weight(1f), color = palette.subtleSurface)
+          }
+
+          PrimaryTabRow(
+            selectedTabIndex = selectedTabIndex,
+            containerColor = palette.subtleSurface,
+            contentColor = palette.accent,
+          ) {
+            Tab(
+              selected = selectedTabIndex == 0,
+              onClick = {
+                selectedTabIndex = 0
+                onClearMessages()
+              },
+              text = { Text("Iniciar sesión", fontSize = 12.sp) },
+            )
+            Tab(
+              selected = selectedTabIndex == 1,
+              onClick = {
+                selectedTabIndex = 1
+                onClearMessages()
+              },
+              text = { Text("Crear cuenta", fontSize = 12.sp) },
+            )
+          }
+
+          OutlinedTextField(
+            value = email,
+            onValueChange = { email = it },
+            label = { Text("Correo electrónico") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+          )
+
+          OutlinedTextField(
+            value = password,
+            onValueChange = { password = it },
+            label = { Text("Contraseña (mín. 8 caracteres)") },
+            singleLine = true,
+            visualTransformation =
+              if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            trailingIcon = {
+              IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                Icon(
+                  imageVector =
+                    if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                  contentDescription = if (passwordVisible) "Ocultar" else "Mostrar",
+                  modifier = Modifier.size(18.dp),
+                )
+              }
+            },
+            modifier = Modifier.fillMaxWidth(),
+          )
+
+          if (account.isLoading) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.Center,
+            ) {
+              CircularProgressIndicator(modifier = Modifier.size(24.dp))
+            }
+          } else {
+            Button(
+              onClick = {
+                if (selectedTabIndex == 0) {
+                  onSignInWithEmail(email, password)
+                } else {
+                  onSignUpWithEmail(email, password)
+                }
+              },
+              modifier = Modifier.fillMaxWidth(),
+            ) {
+              Text(if (selectedTabIndex == 0) "Entrar" else "Registrarme")
+            }
+          }
+
+          Text(
+            text = "🔒 Tu información local nunca se pierde. Cada usuario accede únicamente a sus datos mediante políticas de Row Level Security (RLS) en Supabase.",
+            style = MaterialTheme.typography.bodySmall,
+            color = palette.textSecondary,
+            fontSize = 10.sp,
+          )
+        }
+      }
+    },
+    confirmButton = {
+      TextButton(onClick = onDismiss) { Text("Cerrar") }
     },
   )
 }
