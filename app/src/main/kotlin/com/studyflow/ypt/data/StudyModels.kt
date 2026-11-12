@@ -61,6 +61,7 @@ data class PersistedStudyState(
   val preferredTimerMode: TimerMode = TimerMode.STOPWATCH,
   val pomodoroConfig: PomodoroConfig = PomodoroConfig(),
   val completedPomodorosByDate: Map<String, Int> = emptyMap(),
+  val isHeaderCollapsed: Boolean = false,
 )
 
 fun defaultSubjects(): List<Subject> =

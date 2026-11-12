@@ -48,6 +48,8 @@ interface DataRepository {
 
   fun updateTimerMode(mode: TimerMode) {}
 
+  fun updateHeaderCollapsed(collapsed: Boolean) {}
+
   fun updatePomodoroConfig(
     focusMinutes: Int,
     shortBreakMinutes: Int,
@@ -211,6 +213,11 @@ class DefaultDataRepository(context: Context? = null) : DataRepository {
   override fun updateTimerMode(mode: TimerMode) {
     val current = _studyState.value
     saveState(current.copy(preferredTimerMode = mode))
+  }
+
+  override fun updateHeaderCollapsed(collapsed: Boolean) {
+    val current = _studyState.value
+    saveState(current.copy(isHeaderCollapsed = collapsed))
   }
 
   override fun updatePomodoroConfig(

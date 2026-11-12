@@ -45,6 +45,7 @@ internal fun mergeStudyStates(
     preferredTimerMode = prefs.preferredTimerMode,
     pomodoroConfig = prefs.pomodoroConfig,
     completedPomodorosByDate = pomodoros,
+    isHeaderCollapsed = local.isHeaderCollapsed,
   )
 }
 

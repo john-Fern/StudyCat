@@ -36,6 +36,8 @@ import androidx.compose.material.icons.filled.CloudQueue
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NotificationsActive
@@ -252,6 +254,7 @@ fun MainScreen(
       onDeleteSession = viewModel::deleteSession,
       onSelectTimelineBlock = viewModel::selectSessionForTenMinuteBlock,
       onEnterOledMode = { viewModel.setOledFocusMode(true) },
+      onToggleHeaderCollapsed = viewModel::toggleHeaderCollapsed,
       onSelectTheme = viewModel::setAppTheme,
       onSelectTimerMode = viewModel::setTimerMode,
       onTogglePomodoroBreak = viewModel::togglePomodoroBreak,
@@ -286,6 +289,7 @@ internal fun YptScaffold(
     findSessionForTenMinuteBlock(state.todaySessions, hour, blockIdx)?.id
   },
   onEnterOledMode: () -> Unit,
+  onToggleHeaderCollapsed: () -> Unit = {},
   onSelectTheme: (AppTheme) -> Unit = {},
   onSelectTimerMode: (TimerMode) -> Unit = {},
   onTogglePomodoroBreak: () -> Unit = {},
@@ -370,6 +374,7 @@ internal fun YptScaffold(
           onDeleteSubject = onDeleteSubject,
           onEditSession = { id -> editingSessionId = id },
           onEnterOledMode = onEnterOledMode,
+          onToggleHeaderCollapsed = onToggleHeaderCollapsed,
           onOpenThemeSelector = { showThemeDialog = true },
           onSelectTimerMode = onSelectTimerMode,
           onTogglePomodoroBreak = onTogglePomodoroBreak,
@@ -516,6 +521,7 @@ private fun TimerTabContent(
   onSkipPomodoroPhase: () -> Unit,
   onResetPomodoro: () -> Unit,
   onOpenPomodoroConfig: () -> Unit,
+  onToggleHeaderCollapsed: () -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
   val palette = LocalPalette.current
@@ -546,7 +552,7 @@ private fun TimerTabContent(
                 }
             )
           )
-          .padding(horizontal = 18.dp, vertical = 14.dp)
+          .padding(horizontal = 18.dp, vertical = if (state.isHeaderCollapsed) 10.dp else 14.dp)
     ) {
       Column(
         modifier = Modifier.fillMaxWidth(),
@@ -723,231 +729,407 @@ private fun TimerTabContent(
                 }
               }
             }
+            // Botón Flecha para Comprimir / Expandir
+            Surface(
+              color =
+                if (state.isHeaderCollapsed) {
+                  palette.accent.copy(alpha = 0.18f)
+                } else {
+                  palette.subtleSurface
+                },
+              shape = RoundedCornerShape(50),
+              modifier =
+                Modifier.clip(RoundedCornerShape(50))
+                  .clickable { onToggleHeaderCollapsed() }
+                  .semantics {
+                    contentDescription =
+                      if (state.isHeaderCollapsed) "Expandir panel de tiempo" else "Comprimir panel de tiempo"
+                  },
+            ) {
+              Row(
+                modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                Icon(
+                  imageVector =
+                    if (state.isHeaderCollapsed) {
+                      Icons.Default.KeyboardArrowDown
+                    } else {
+                      Icons.Default.KeyboardArrowUp
+                    },
+                  contentDescription = null,
+                  tint = if (state.isHeaderCollapsed) palette.accent else palette.textSecondary,
+                  modifier = Modifier.size(13.dp),
+                )
+              }
+            }
           }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Selector de Modo: Cronómetro vs Pomodoro
-        Row(
-          modifier =
-            Modifier.clip(RoundedCornerShape(50))
-              .background(palette.cardBg)
-              .padding(4.dp),
-          horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-          TimerModeChip(
-            label = "⏱️ Cronómetro",
-            selected = state.timerMode == TimerMode.STOPWATCH,
-            onClick = { onSelectTimerMode(TimerMode.STOPWATCH) },
-          )
-          TimerModeChip(
-            label = "🍅 Pomodoro",
-            selected = state.timerMode == TimerMode.POMODORO,
-            onClick = { onSelectTimerMode(TimerMode.POMODORO) },
-          )
+        // VISTA COMPRIMIDA (Limpia y minimalista: foco directo en estudiar)
+        AnimatedVisibility(visible = state.isHeaderCollapsed) {
+          Column(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+          ) {
+            if (state.activeTimer.isRunning) {
+              Row(
+                modifier =
+                  Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(activeSubject?.colorHex ?: 0xFFFF6B4A).copy(alpha = 0.16f))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                Row(
+                  verticalAlignment = Alignment.CenterVertically,
+                  modifier = Modifier.weight(1f, fill = false),
+                ) {
+                  Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    tint = Color(activeSubject?.colorHex ?: 0xFFFF6B4A),
+                    modifier = Modifier.size(16.dp),
+                  )
+                  Spacer(modifier = Modifier.width(6.dp))
+                  Text(
+                    text = if (state.activeTimer.isBreakRunning) "Descanso" else (activeSubject?.name ?: "Estudiando"),
+                    color = Color(activeSubject?.colorHex ?: 0xFFFF6B4A),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                  )
+                  Spacer(modifier = Modifier.width(6.dp))
+                  Text(
+                    text =
+                      if (isPomodoro) {
+                        formatDurationMmSs(state.activeTimer.remainingPomodoroSeconds)
+                      } else {
+                        formatDurationHms(state.activeTimer.elapsedSeconds)
+                      },
+                    color = palette.textPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    fontFamily = FontFamily.Monospace,
+                  )
+                }
+                OutlinedButton(
+                  onClick = onEnterOledMode,
+                  shape = RoundedCornerShape(50),
+                  contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                  modifier = Modifier.height(28.dp),
+                ) {
+                  Icon(
+                    Icons.Default.Bedtime,
+                    contentDescription = null,
+                    modifier = Modifier.size(12.dp),
+                    tint = palette.textPrimary,
+                  )
+                  Spacer(modifier = Modifier.width(3.dp))
+                  Text("OLED", color = palette.textPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+              }
+            } else {
+              Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                Text(
+                  text = "⏱️ Hoy: ${formatDurationHms(state.totalSecondsToday)} · Meta: ${state.dailyGoalMinutes / 60}h",
+                  color = palette.textSecondary,
+                  fontSize = 12.sp,
+                  fontWeight = FontWeight.Medium,
+                  maxLines = 1,
+                )
+                Surface(
+                  color = palette.subtleSurface,
+                  shape = RoundedCornerShape(50),
+                  modifier =
+                    Modifier.clip(RoundedCornerShape(50))
+                      .clickable { onToggleHeaderCollapsed() },
+                ) {
+                  Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                  ) {
+                    Text("Expandir", fontSize = 11.sp, color = palette.accent, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Icon(
+                      Icons.Default.KeyboardArrowDown,
+                      contentDescription = null,
+                      tint = palette.accent,
+                      modifier = Modifier.size(13.dp),
+                    )
+                  }
+                }
+              }
+            }
+          }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        if (!isPomodoro) {
-          // MODO CRONÓMETRO
-          Text(
-            text = formatDurationHms(state.totalSecondsToday),
-            color = palette.textPrimary,
-            fontSize = 50.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace,
-          )
-        } else {
-          // MODO POMODORO
-          val phase = state.activeTimer.pomodoroPhase
-          Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        // VISTA EXPANDIDA (Completa: selector de modo, reloj gigante y métricas)
+        AnimatedVisibility(visible = !state.isHeaderCollapsed) {
+          Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
           ) {
-            Surface(
-              color = palette.accent.copy(alpha = 0.16f),
-              shape = RoundedCornerShape(50),
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Selector de Modo: Cronómetro vs Pomodoro
+            Row(
+              modifier =
+                Modifier.clip(RoundedCornerShape(50))
+                  .background(palette.cardBg)
+                  .padding(4.dp),
+              horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-              Text(
-                text =
-                  when (phase) {
-                    PomodoroPhase.FOCUS -> "🍅 Fase: Enfoque"
-                    PomodoroPhase.SHORT_BREAK -> "☕ Descanso Corto"
-                    PomodoroPhase.LONG_BREAK -> "🌙 Descanso Largo"
-                  },
-                color = palette.accent,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+              TimerModeChip(
+                label = "⏱️ Cronómetro",
+                selected = state.timerMode == TimerMode.STOPWATCH,
+                onClick = { onSelectTimerMode(TimerMode.STOPWATCH) },
+              )
+              TimerModeChip(
+                label = "🍅 Pomodoro",
+                selected = state.timerMode == TimerMode.POMODORO,
+                onClick = { onSelectTimerMode(TimerMode.POMODORO) },
               )
             }
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (!isPomodoro) {
+              // MODO CRONÓMETRO
+              Text(
+                text = formatDurationHms(state.totalSecondsToday),
+                color = palette.textPrimary,
+                fontSize = 50.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace,
+              )
+            } else {
+              // MODO POMODORO
+              val phase = state.activeTimer.pomodoroPhase
+              Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+              ) {
+                Surface(
+                  color = palette.accent.copy(alpha = 0.16f),
+                  shape = RoundedCornerShape(50),
+                ) {
+                  Text(
+                    text =
+                      when (phase) {
+                        PomodoroPhase.FOCUS -> "🍅 Fase: Enfoque"
+                        PomodoroPhase.SHORT_BREAK -> "☕ Descanso Corto"
+                        PomodoroPhase.LONG_BREAK -> "🌙 Descanso Largo"
+                      },
+                    color = palette.accent,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                  )
+                }
+
+                Surface(
+                  color = palette.subtleSurface,
+                  shape = RoundedCornerShape(50),
+                  modifier =
+                    Modifier.clip(RoundedCornerShape(50))
+                      .clickable { onOpenPomodoroConfig() }
+                      .semantics { contentDescription = "Configurar Pomodoro" },
+                ) {
+                  Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                  ) {
+                    Icon(
+                      imageVector = Icons.Default.Settings,
+                      contentDescription = null,
+                      tint = palette.textSecondary,
+                      modifier = Modifier.size(13.dp),
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                      text = "${state.pomodoroConfig.focusMinutes}/${state.pomodoroConfig.shortBreakMinutes}m",
+                      color = palette.textSecondary,
+                      fontSize = 11.sp,
+                      fontWeight = FontWeight.SemiBold,
+                    )
+                  }
+                }
+              }
+
+              Spacer(modifier = Modifier.height(6.dp))
+
+              // Reloj regresivo del Pomodoro
+              Text(
+                text = formatDurationMmSs(state.activeTimer.remainingPomodoroSeconds),
+                color = palette.textPrimary,
+                fontSize = 52.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace,
+              )
+
+              Text(
+                text = "Total hoy: ${formatDurationHms(state.totalSecondsToday)} · 🐾 ${state.completedPomodorosToday} pomodoros",
+                color = palette.textSecondary,
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace,
+              )
+
+              Spacer(modifier = Modifier.height(8.dp))
+
+              // Controles rápidos de fase Pomodoro
+              Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                if (phase != PomodoroPhase.FOCUS) {
+                  Button(
+                    onClick = onTogglePomodoroBreak,
+                    colors = ButtonDefaults.buttonColors(containerColor = palette.accent),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                  ) {
+                    Icon(
+                      imageVector =
+                        if (state.activeTimer.isBreakRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
+                      contentDescription = null,
+                      modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                      text =
+                        if (state.activeTimer.isBreakRunning) "Pausar descanso" else "Iniciar descanso",
+                      fontSize = 12.sp,
+                    )
+                  }
+                }
+
+                OutlinedButton(
+                  onClick = onSkipPomodoroPhase,
+                  shape = RoundedCornerShape(50),
+                  contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                ) {
+                  Icon(
+                    imageVector = Icons.Default.SkipNext,
+                    contentDescription = null,
+                    tint = palette.textPrimary,
+                    modifier = Modifier.size(16.dp),
+                  )
+                  Spacer(modifier = Modifier.width(4.dp))
+                  Text(
+                    text = if (phase == PomodoroPhase.FOCUS) "Saltar a descanso" else "Volver a enfoque",
+                    color = palette.textPrimary,
+                    fontSize = 11.sp,
+                  )
+                }
+
+                IconButton(onClick = onResetPomodoro, modifier = Modifier.size(32.dp)) {
+                  Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "Reiniciar Pomodoro",
+                    tint = palette.textSecondary,
+                    modifier = Modifier.size(18.dp),
+                  )
+                }
+              }
+            }
+
+            // Materia activa + botón Modo OLED
+            AnimatedVisibility(visible = state.activeTimer.isRunning) {
+              Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Spacer(modifier = Modifier.height(6.dp))
+                if (state.activeTimer.isStudying) {
+                  Text(
+                    text =
+                      "🐱 Estudiando: ${activeSubject?.name ?: ""} (${formatDurationHms(state.activeTimer.elapsedSeconds)})",
+                    color = Color(activeSubject?.colorHex ?: 0xFFFF6B4A),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                  )
+                } else {
+                  Text(
+                    text = "😸 Gatito tomando un descanso...",
+                    color = palette.accent,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                  )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                  onClick = onEnterOledMode,
+                  shape = RoundedCornerShape(50),
+                  contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                ) {
+                  Icon(
+                    Icons.Default.Bedtime,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = palette.textPrimary,
+                  )
+                  Spacer(modifier = Modifier.width(6.dp))
+                  Text("Modo Pantalla Negra (OLED)", color = palette.textPrimary, fontSize = 12.sp)
+                }
+              }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Barra de métricas rápidas
+            val goalSeconds = (state.dailyGoalMinutes * 60L).coerceAtLeast(1L)
+            val progressPercent = ((state.totalSecondsToday * 100L) / goalSeconds).coerceAtMost(100L)
+
+            Row(
+              modifier =
+                Modifier.fillMaxWidth()
+                  .clip(RoundedCornerShape(14.dp))
+                  .background(palette.cardBg)
+                  .padding(vertical = 10.dp, horizontal = 8.dp),
+              horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+              QuickMetricItem(label = "Inicio", value = state.firstStartTimeFormatted)
+              QuickMetricItem(label = "Fin", value = state.lastEndTimeFormatted)
+              QuickMetricItem(
+                label = "Máx. Enfoque",
+                value = formatDurationShort(state.maxContinuousSecondsToday),
+              )
+              QuickMetricItem(label = "Meta (${state.dailyGoalMinutes / 60}h)", value = "$progressPercent%")
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Opción para comprimir el panel al pie de la cabecera
             Surface(
               color = palette.subtleSurface,
               shape = RoundedCornerShape(50),
               modifier =
                 Modifier.clip(RoundedCornerShape(50))
-                  .clickable { onOpenPomodoroConfig() }
-                  .semantics { contentDescription = "Configurar Pomodoro" },
+                  .clickable { onToggleHeaderCollapsed() }
+                  .semantics { contentDescription = "Comprimir panel de tiempo" },
             ) {
               Row(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
               ) {
-                Icon(
-                  imageVector = Icons.Default.Settings,
-                  contentDescription = null,
-                  tint = palette.textSecondary,
-                  modifier = Modifier.size(13.dp),
-                )
-                Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                  text = "${state.pomodoroConfig.focusMinutes}/${state.pomodoroConfig.shortBreakMinutes}m",
+                  text = "Comprimir panel",
                   color = palette.textSecondary,
                   fontSize = 11.sp,
-                  fontWeight = FontWeight.SemiBold,
-                )
-              }
-            }
-          }
-
-          Spacer(modifier = Modifier.height(6.dp))
-
-          // Reloj regresivo del Pomodoro
-          Text(
-            text = formatDurationMmSs(state.activeTimer.remainingPomodoroSeconds),
-            color = palette.textPrimary,
-            fontSize = 52.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace,
-          )
-
-          Text(
-            text = "Total hoy: ${formatDurationHms(state.totalSecondsToday)} · 🐾 ${state.completedPomodorosToday} pomodoros",
-            color = palette.textSecondary,
-            fontSize = 12.sp,
-            fontFamily = FontFamily.Monospace,
-          )
-
-          Spacer(modifier = Modifier.height(8.dp))
-
-          // Controles rápidos de fase Pomodoro
-          Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-          ) {
-            if (phase != PomodoroPhase.FOCUS) {
-              Button(
-                onClick = onTogglePomodoroBreak,
-                colors = ButtonDefaults.buttonColors(containerColor = palette.accent),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-              ) {
-                Icon(
-                  imageVector =
-                    if (state.activeTimer.isBreakRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
-                  contentDescription = null,
-                  modifier = Modifier.size(16.dp),
+                  fontWeight = FontWeight.Medium,
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                  text =
-                    if (state.activeTimer.isBreakRunning) "Pausar descanso" else "Iniciar descanso",
-                  fontSize = 12.sp,
+                Icon(
+                  imageVector = Icons.Default.KeyboardArrowUp,
+                  contentDescription = null,
+                  tint = palette.textSecondary,
+                  modifier = Modifier.size(14.dp),
                 )
               }
             }
-
-            OutlinedButton(
-              onClick = onSkipPomodoroPhase,
-              shape = RoundedCornerShape(50),
-              contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-            ) {
-              Icon(
-                imageVector = Icons.Default.SkipNext,
-                contentDescription = null,
-                tint = palette.textPrimary,
-                modifier = Modifier.size(16.dp),
-              )
-              Spacer(modifier = Modifier.width(4.dp))
-              Text(
-                text = if (phase == PomodoroPhase.FOCUS) "Saltar a descanso" else "Volver a enfoque",
-                color = palette.textPrimary,
-                fontSize = 11.sp,
-              )
-            }
-
-            IconButton(onClick = onResetPomodoro, modifier = Modifier.size(32.dp)) {
-              Icon(
-                imageVector = Icons.Default.Refresh,
-                contentDescription = "Reiniciar Pomodoro",
-                tint = palette.textSecondary,
-                modifier = Modifier.size(18.dp),
-              )
-            }
           }
-        }
-
-        // Materia activa + botón Modo OLED
-        AnimatedVisibility(visible = state.activeTimer.isRunning) {
-          Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Spacer(modifier = Modifier.height(6.dp))
-            if (state.activeTimer.isStudying) {
-              Text(
-                text =
-                  "🐱 Estudiando: ${activeSubject?.name ?: ""} (${formatDurationHms(state.activeTimer.elapsedSeconds)})",
-                color = Color(activeSubject?.colorHex ?: 0xFFFF6B4A),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-              )
-            } else {
-              Text(
-                text = "😸 Gatito tomando un descanso...",
-                color = palette.accent,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-              )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            OutlinedButton(
-              onClick = onEnterOledMode,
-              shape = RoundedCornerShape(50),
-              contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-            ) {
-              Icon(
-                Icons.Default.Bedtime,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = palette.textPrimary,
-              )
-              Spacer(modifier = Modifier.width(6.dp))
-              Text("Modo Pantalla Negra (OLED)", color = palette.textPrimary, fontSize = 12.sp)
-            }
-          }
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // Barra de métricas rápidas
-        val goalSeconds = (state.dailyGoalMinutes * 60L).coerceAtLeast(1L)
-        val progressPercent = ((state.totalSecondsToday * 100L) / goalSeconds).coerceAtMost(100L)
-
-        Row(
-          modifier =
-            Modifier.fillMaxWidth()
-              .clip(RoundedCornerShape(14.dp))
-              .background(palette.cardBg)
-              .padding(vertical = 10.dp, horizontal = 8.dp),
-          horizontalArrangement = Arrangement.SpaceEvenly,
-        ) {
-          QuickMetricItem(label = "Inicio", value = state.firstStartTimeFormatted)
-          QuickMetricItem(label = "Fin", value = state.lastEndTimeFormatted)
-          QuickMetricItem(
-            label = "Máx. Enfoque",
-            value = formatDurationShort(state.maxContinuousSecondsToday),
-          )
-          QuickMetricItem(label = "Meta (${state.dailyGoalMinutes / 60}h)", value = "$progressPercent%")
         }
       }
     }

@@ -92,6 +92,7 @@ data class YptDashboardState(
   val timerMode: TimerMode = TimerMode.STOPWATCH,
   val pomodoroConfig: PomodoroConfig = PomodoroConfig(),
   val completedPomodorosToday: Int = 0,
+  val isHeaderCollapsed: Boolean = false,
 )
 
 class MainScreenViewModel(
@@ -563,6 +564,15 @@ class MainScreenViewModel(
     dataRepository.updateTheme(theme)
   }
 
+  fun toggleHeaderCollapsed() {
+    val current = latestPersistedState.isHeaderCollapsed
+    dataRepository.updateHeaderCollapsed(!current)
+  }
+
+  fun setHeaderCollapsed(collapsed: Boolean) {
+    dataRepository.updateHeaderCollapsed(collapsed)
+  }
+
   fun updatePomodoroConfig(
     focusMinutes: Int,
     shortBreakMinutes: Int,
@@ -728,6 +738,7 @@ class MainScreenViewModel(
       timerMode = persisted.preferredTimerMode,
       pomodoroConfig = persisted.pomodoroConfig,
       completedPomodorosToday = completedPomodoros,
+      isHeaderCollapsed = persisted.isHeaderCollapsed,
     )
   }
 

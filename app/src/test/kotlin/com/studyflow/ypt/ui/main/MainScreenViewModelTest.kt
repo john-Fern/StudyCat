@@ -495,4 +495,26 @@ class MainScreenViewModelTest {
     assertEquals("45m", formatDurationShort(2700L))
     assertEquals("2h 15m", formatDurationShort(8100L))
   }
+
+  @Test(timeout = 10_000L)
+  fun toggleHeaderCollapsed_persistsAndTogglesState() = runTest {
+    val repository = DefaultDataRepository(context = null)
+    val viewModel = MainScreenViewModel(repository, coroutineScope = backgroundScope)
+    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.yptState.collect {} }
+    runCurrent()
+
+    assertFalse(viewModel.yptState.value.isHeaderCollapsed)
+
+    viewModel.toggleHeaderCollapsed()
+    runCurrent()
+
+    assertTrue(viewModel.yptState.value.isHeaderCollapsed)
+    assertTrue(repository.currentStudyState.isHeaderCollapsed)
+
+    viewModel.toggleHeaderCollapsed()
+    runCurrent()
+
+    assertFalse(viewModel.yptState.value.isHeaderCollapsed)
+    assertFalse(repository.currentStudyState.isHeaderCollapsed)
+  }
 }
