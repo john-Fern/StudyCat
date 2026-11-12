@@ -396,6 +396,21 @@ class MainScreenViewModel(
     dataRepository.deleteSubject(subjectId)
   }
 
+  fun updateSessionEndTime(sessionId: String, newEndTimeMillis: Long) {
+    val maxAllowedEnd = currentTimeProvider()
+    val clampedEnd =
+      if (newEndTimeMillis > maxAllowedEnd) {
+        maxAllowedEnd
+      } else {
+        newEndTimeMillis
+      }
+    dataRepository.updateSessionEndTime(sessionId, clampedEnd)
+  }
+
+  fun deleteSession(sessionId: String) {
+    dataRepository.deleteSession(sessionId)
+  }
+
   private fun buildDashboardState(
     persisted: PersistedStudyState,
     timer: ActiveTimerState,
@@ -439,7 +454,7 @@ class MainScreenViewModel(
         todaySessions.maxOfOrNull { it.endTimeMillis }
       }
 
-    // Construir cuadrícula estilo YPT (24h x 6 bloques de 10 minutos)
+    // Construir cuadrícula diaria (24h x 6 bloques de 10 minutos)
     val allSessionsWithLive =
       if (timer.subjectId != null && !timer.isBreakRunning && timer.elapsedSeconds > 0) {
         todaySessions +

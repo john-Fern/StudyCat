@@ -38,6 +38,10 @@ interface DataRepository {
     isPomodoro: Boolean = false,
   ) {}
 
+  fun updateSessionEndTime(sessionId: String, newEndTimeMillis: Long) {}
+
+  fun deleteSession(sessionId: String) {}
+
   fun updateDailyGoal(minutes: Int) {}
 
   fun updateTheme(theme: AppTheme) {}
@@ -151,6 +155,43 @@ class DefaultDataRepository(context: Context? = null) : DataRepository {
       )
     val current = _studyState.value
     saveState(current.copy(sessions = current.sessions + newSession))
+  }
+
+  override fun updateSessionEndTime(sessionId: String, newEndTimeMillis: Long) {
+    val current = _studyState.value
+    val updatedSessions =
+      current.sessions.map { session ->
+        if (session.id == sessionId) {
+          val validEndMillis = newEndTimeMillis.coerceAtLeast(session.startTimeMillis + 1_000L)
+          val newDurationSeconds =
+            ((validEndMillis - session.startTimeMillis) / 1_000L).coerceAtLeast(1L)
+          session.copy(
+            endTimeMillis = session.startTimeMillis + newDurationSeconds * 1_000L,
+            durationSeconds = newDurationSeconds,
+          )
+        } else {
+          session
+        }
+      }
+    saveState(current.copy(sessions = updatedSessions))
+  }
+
+  override fun deleteSession(sessionId: String) {
+    val current = _studyState.value
+    val target = current.sessions.find { it.id == sessionId } ?: return
+    val updatedPomodoros = current.completedPomodorosByDate.toMutableMap()
+    if (target.isPomodoro) {
+      val currentCount = updatedPomodoros[target.dateKey] ?: 0
+      if (currentCount > 0) {
+        updatedPomodoros[target.dateKey] = currentCount - 1
+      }
+    }
+    saveState(
+      current.copy(
+        sessions = current.sessions.filterNot { it.id == sessionId },
+        completedPomodorosByDate = updatedPomodoros,
+      )
+    )
   }
 
   override fun updateDailyGoal(minutes: Int) {

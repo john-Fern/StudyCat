@@ -86,11 +86,13 @@ import com.studyflow.ypt.data.AppTheme
 import com.studyflow.ypt.data.DefaultDataRepository
 import com.studyflow.ypt.data.PomodoroConfig
 import com.studyflow.ypt.data.PomodoroPhase
+import com.studyflow.ypt.data.StudySession
 import com.studyflow.ypt.data.Subject
 import com.studyflow.ypt.data.SubjectColorPalette
 import com.studyflow.ypt.data.TimerMode
 import com.studyflow.ypt.ui.theme.StudyFlowTheme
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -204,6 +206,8 @@ fun MainScreen(
       onAddSubject = viewModel::addSubject,
       onUpdateSubject = viewModel::updateSubject,
       onDeleteSubject = viewModel::deleteSubject,
+      onUpdateSessionEndTime = viewModel::updateSessionEndTime,
+      onDeleteSession = viewModel::deleteSession,
       onEnterOledMode = { viewModel.setOledFocusMode(true) },
       onSelectTheme = viewModel::setAppTheme,
       onSelectTimerMode = viewModel::setTimerMode,
@@ -224,6 +228,8 @@ internal fun YptScaffold(
   onAddSubject: (String, Long, Int) -> Unit,
   onUpdateSubject: (String, String, Long, Int) -> Unit = { _, _, _, _ -> },
   onDeleteSubject: (String) -> Unit,
+  onUpdateSessionEndTime: (String, Long) -> Unit = { _, _ -> },
+  onDeleteSession: (String) -> Unit = {},
   onEnterOledMode: () -> Unit,
   onSelectTheme: (AppTheme) -> Unit = {},
   onSelectTimerMode: (TimerMode) -> Unit = {},
@@ -237,6 +243,7 @@ internal fun YptScaffold(
   var selectedTab by rememberSaveable { mutableIntStateOf(0) }
   var showAddDialog by rememberSaveable { mutableStateOf(false) }
   var editingSubjectId by rememberSaveable { mutableStateOf<String?>(null) }
+  var editingSessionId by rememberSaveable { mutableStateOf<String?>(null) }
   var showThemeDialog by rememberSaveable { mutableStateOf(false) }
   var showPomodoroConfigDialog by rememberSaveable { mutableStateOf(false) }
 
@@ -294,6 +301,7 @@ internal fun YptScaffold(
           onToggleSubject = onToggleSubject,
           onEditSubject = { id -> editingSubjectId = id },
           onDeleteSubject = onDeleteSubject,
+          onEditSession = { id -> editingSessionId = id },
           onEnterOledMode = onEnterOledMode,
           onOpenThemeSelector = { showThemeDialog = true },
           onSelectTimerMode = onSelectTimerMode,
@@ -307,6 +315,7 @@ internal fun YptScaffold(
         StatsTabContent(
           state = state,
           onOpenThemeSelector = { showThemeDialog = true },
+          onEditSession = { id -> editingSessionId = id },
           modifier = Modifier.padding(innerPadding),
         )
       }
@@ -330,6 +339,25 @@ internal fun YptScaffold(
         onConfirm = { name, colorHex, targetMins ->
           onUpdateSubject(subjectToEdit.id, name, colorHex, targetMins)
           editingSubjectId = null
+        },
+      )
+    }
+
+    val sessionToEdit = state.todaySessions.find { it.id == editingSessionId }
+    if (sessionToEdit != null) {
+      val sessionSubject = state.subjects.find { it.id == sessionToEdit.subjectId }
+      EditSessionDialog(
+        session = sessionToEdit,
+        subjectName = sessionSubject?.name ?: "Materia",
+        subjectColor = Color(sessionSubject?.colorHex ?: 0xFFFF6B4A),
+        onDismiss = { editingSessionId = null },
+        onUpdateEndTime = { newEndMillis ->
+          onUpdateSessionEndTime(sessionToEdit.id, newEndMillis)
+          editingSessionId = null
+        },
+        onDelete = {
+          onDeleteSession(sessionToEdit.id)
+          editingSessionId = null
         },
       )
     }
@@ -364,6 +392,7 @@ private fun TimerTabContent(
   onToggleSubject: (String) -> Unit,
   onEditSubject: (String) -> Unit,
   onDeleteSubject: (String) -> Unit,
+  onEditSession: (String) -> Unit = {},
   onEnterOledMode: () -> Unit,
   onOpenThemeSelector: () -> Unit,
   onSelectTimerMode: (TimerMode) -> Unit,
@@ -383,7 +412,7 @@ private fun TimerTabContent(
   }
 
   Column(modifier = modifier.fillMaxSize()) {
-    // Cabecera superior estilo StudyCat / YPT
+    // Cabecera superior de StudyCat
     Box(
       modifier =
         Modifier.fillMaxWidth()
@@ -534,7 +563,7 @@ private fun TimerTabContent(
         Spacer(modifier = Modifier.height(12.dp))
 
         if (!isPomodoro) {
-          // MODO CRONÓMETRO (Clásico YPT)
+          // MODO CRONÓMETRO
           Text(
             text = formatDurationHms(state.totalSecondsToday),
             color = palette.textPrimary,
@@ -712,7 +741,7 @@ private fun TimerTabContent(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Barra de métricas rápidas estilo YPT
+        // Barra de métricas rápidas
         val goalSeconds = (state.dailyGoalMinutes * 60L).coerceAtLeast(1L)
         val progressPercent = ((state.totalSecondsToday * 100L) / goalSeconds).coerceAtMost(100L)
 
@@ -769,13 +798,16 @@ private fun TimerTabContent(
       items(state.subjects, key = { it.id }) { subject ->
         val isRunningThis = state.activeTimer.subjectId == subject.id
         val secondsStudied = state.subjectSecondsToday[subject.id] ?: 0L
+        val subjectSessions = state.todaySessions.filter { it.subjectId == subject.id }
         SubjectRowCard(
           subject = subject,
           secondsStudied = secondsStudied,
+          subjectSessions = subjectSessions,
           isRunning = isRunningThis,
           onTogglePlay = { onToggleSubject(subject.id) },
           onEdit = { onEditSubject(subject.id) },
           onDelete = { onDeleteSubject(subject.id) },
+          onEditSession = onEditSession,
         )
       }
 
@@ -828,10 +860,12 @@ private fun QuickMetricItem(label: String, value: String) {
 private fun SubjectRowCard(
   subject: Subject,
   secondsStudied: Long,
+  subjectSessions: List<StudySession> = emptyList(),
   isRunning: Boolean,
   onTogglePlay: () -> Unit,
   onEdit: () -> Unit,
   onDelete: () -> Unit,
+  onEditSession: (String) -> Unit = {},
 ) {
   val palette = LocalPalette.current
   val subjectColor = Color(subject.colorHex)
@@ -859,7 +893,7 @@ private fun SubjectRowCard(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
       ) {
-        // Botón Play / Pause con el color de la materia (estilo YPT)
+        // Botón Play / Pause con el color de la materia
         IconButton(
           onClick = onTogglePlay,
           modifier =
@@ -934,6 +968,68 @@ private fun SubjectRowCard(
         color = subjectColor,
         trackColor = palette.subtleSurface,
       )
+
+      if (subjectSessions.isNotEmpty()) {
+        val timeFmt = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(
+          text = "Bloques estudiados hoy (toca para ajustar término o borrar):",
+          color = palette.textSecondary,
+          fontSize = 11.sp,
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+          subjectSessions.forEach { session ->
+            val startStr = timeFmt.format(Date(session.startTimeMillis))
+            val endStr = timeFmt.format(Date(session.endTimeMillis))
+            Surface(
+              color = palette.subtleSurface,
+              shape = RoundedCornerShape(10.dp),
+              modifier =
+                Modifier.fillMaxWidth()
+                  .clip(RoundedCornerShape(10.dp))
+                  .clickable { onEditSession(session.id) },
+            ) {
+              Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+              ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                  Box(
+                    modifier =
+                      Modifier.size(8.dp)
+                        .clip(CircleShape)
+                        .background(subjectColor)
+                  )
+                  Spacer(modifier = Modifier.width(8.dp))
+                  Text(
+                    text = "$startStr → $endStr",
+                    color = palette.textPrimary,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace,
+                  )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                  Text(
+                    text = formatDurationHms(session.durationSeconds),
+                    color = palette.textSecondary,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace,
+                  )
+                  Spacer(modifier = Modifier.width(6.dp))
+                  Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Editar bloque $startStr",
+                    tint = palette.accent,
+                    modifier = Modifier.size(14.dp),
+                  )
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
@@ -942,9 +1038,13 @@ private fun SubjectRowCard(
 private fun StatsTabContent(
   state: YptDashboardState,
   onOpenThemeSelector: () -> Unit,
+  onEditSession: (String) -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
   val palette = LocalPalette.current
+  val subjectMap = remember(state.subjects) { state.subjects.associateBy { it.id } }
+  val sessionTimeFmt = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
+
   LazyColumn(
     modifier = modifier.fillMaxSize(),
     contentPadding = PaddingValues(16.dp),
@@ -1058,7 +1158,102 @@ private fun StatsTabContent(
       }
     }
 
-    // Cuadrícula de Bloques de 10 Minutos (Estilo YPT)
+    // Bloques registrados hoy (editables para borrar o ajustar hora de término)
+    if (state.todaySessions.isNotEmpty()) {
+      item {
+        Card(
+          shape = RoundedCornerShape(16.dp),
+          colors = CardDefaults.cardColors(containerColor = palette.cardBg),
+          modifier = Modifier.fillMaxWidth(),
+        ) {
+          Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+              text = "BLOQUES ESTUDIADOS HOY",
+              color = palette.textSecondary,
+              fontSize = 12.sp,
+              fontWeight = FontWeight.Bold,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+              text = "Toca cualquier bloque para ajustar su hora de término o eliminarlo si fue un error.",
+              color = palette.textSecondary,
+              fontSize = 11.sp,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              state.todaySessions.forEach { session ->
+                val subject = subjectMap[session.subjectId]
+                val subjColor = Color(subject?.colorHex ?: 0xFFFF6B4A)
+                val startStr = sessionTimeFmt.format(Date(session.startTimeMillis))
+                val endStr = sessionTimeFmt.format(Date(session.endTimeMillis))
+                Surface(
+                  color = palette.subtleSurface,
+                  shape = RoundedCornerShape(12.dp),
+                  modifier =
+                    Modifier.fillMaxWidth()
+                      .clip(RoundedCornerShape(12.dp))
+                      .clickable { onEditSession(session.id) },
+                ) {
+                  Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                  ) {
+                    Row(
+                      verticalAlignment = Alignment.CenterVertically,
+                      modifier = Modifier.weight(1f),
+                    ) {
+                      Box(
+                        modifier =
+                          Modifier.size(10.dp)
+                            .clip(CircleShape)
+                            .background(subjColor)
+                      )
+                      Spacer(modifier = Modifier.width(10.dp))
+                      Column {
+                        Text(
+                          text = subject?.name ?: "Materia",
+                          color = palette.textPrimary,
+                          fontSize = 13.sp,
+                          fontWeight = FontWeight.SemiBold,
+                          maxLines = 1,
+                          overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                          text = "$startStr → $endStr",
+                          color = palette.textSecondary,
+                          fontSize = 11.sp,
+                          fontFamily = FontFamily.Monospace,
+                        )
+                      }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                      Text(
+                        text = formatDurationHms(session.durationSeconds),
+                        color = palette.textPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                      )
+                      Spacer(modifier = Modifier.width(8.dp))
+                      Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Editar bloque",
+                        tint = palette.accent,
+                        modifier = Modifier.size(16.dp),
+                      )
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Cuadrícula de Bloques de 10 Minutos
     item {
       Card(
         shape = RoundedCornerShape(16.dp),
@@ -1067,20 +1262,20 @@ private fun StatsTabContent(
       ) {
         Column(modifier = Modifier.padding(16.dp)) {
           Text(
-            text = "TIMELINE DE 10 MINUTOS (ESTILO YPT)",
+            text = "TIMELINE DE 10 MINUTOS",
             color = palette.textSecondary,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
           )
           Spacer(modifier = Modifier.height(4.dp))
           Text(
-            text = "Cada celda representa 10 minutos de concentración en su hora correspondiente.",
+            text = "Cada celda representa 10 minutos de concentración. Toca un bloque pintado para editar su término o borrarlo.",
             color = palette.textSecondary,
             fontSize = 11.sp,
           )
           Spacer(modifier = Modifier.height(12.dp))
 
-          // Mostramos desde las 06:00 hasta las 23:00 + 00:00..05:00 como YPT
+          // Mostramos desde las 06:00 hasta las 23:00 + 00:00..05:00
           val orderedHours = (6..23) + (0..5)
           orderedHours.forEach { hour ->
             val blocks = state.tenMinuteBlocks[hour] ?: List(6) { null }
@@ -1099,7 +1294,7 @@ private fun StatsTabContent(
                 modifier = Modifier.weight(1f),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
               ) {
-                blocks.forEach { colorHex ->
+                blocks.forEachIndexed { blockIdx, colorHex ->
                   Box(
                     modifier =
                       Modifier.weight(1f)
@@ -1110,6 +1305,16 @@ private fun StatsTabContent(
                             Color(colorHex)
                           } else {
                             palette.subtleSurface
+                          }
+                        )
+                        .then(
+                          if (colorHex != null) {
+                            Modifier.clickable {
+                              findSessionForTenMinuteBlock(state.todaySessions, hour, blockIdx)
+                                ?.let { matched -> onEditSession(matched.id) }
+                            }
+                          } else {
+                            Modifier
                           }
                         )
                   )
@@ -1499,6 +1704,214 @@ private fun EditSubjectDialog(
       TextButton(onClick = onDismiss) { Text("Cancelar") }
     },
   )
+}
+
+@Composable
+private fun EditSessionDialog(
+  session: StudySession,
+  subjectName: String,
+  subjectColor: Color,
+  onDismiss: () -> Unit,
+  onUpdateEndTime: (Long) -> Unit,
+  onDelete: () -> Unit,
+) {
+  val timeFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
+  val startFormatted =
+    remember(session.startTimeMillis) { timeFormat.format(Date(session.startTimeMillis)) }
+
+  var editedEndMillis by remember(session.id, session.endTimeMillis) {
+    mutableLongStateOf(session.endTimeMillis)
+  }
+
+  val initialCal =
+    remember(session.id, session.endTimeMillis) {
+      Calendar.getInstance().apply { timeInMillis = session.endTimeMillis }
+    }
+  var endHourText by remember(session.id, session.endTimeMillis) {
+    mutableStateOf(
+      String.format(Locale.getDefault(), "%02d", initialCal.get(Calendar.HOUR_OF_DAY))
+    )
+  }
+  var endMinuteText by remember(session.id, session.endTimeMillis) {
+    mutableStateOf(String.format(Locale.getDefault(), "%02d", initialCal.get(Calendar.MINUTE)))
+  }
+  var endSecondText by remember(session.id, session.endTimeMillis) {
+    mutableStateOf(String.format(Locale.getDefault(), "%02d", initialCal.get(Calendar.SECOND)))
+  }
+
+  fun syncFieldsFromMillis(millis: Long) {
+    val cal = Calendar.getInstance().apply { timeInMillis = millis }
+    endHourText = String.format(Locale.getDefault(), "%02d", cal.get(Calendar.HOUR_OF_DAY))
+    endMinuteText = String.format(Locale.getDefault(), "%02d", cal.get(Calendar.MINUTE))
+    endSecondText = String.format(Locale.getDefault(), "%02d", cal.get(Calendar.SECOND))
+  }
+
+  fun shiftEndMillis(deltaMillis: Long) {
+    val updated = (editedEndMillis + deltaMillis).coerceAtLeast(session.startTimeMillis + 1_000L)
+    editedEndMillis = updated
+    syncFieldsFromMillis(updated)
+  }
+
+  fun updateMillisFromText(hStr: String, mStr: String, sStr: String) {
+    val h = hStr.toIntOrNull() ?: return
+    val m = mStr.toIntOrNull() ?: return
+    val s = sStr.toIntOrNull() ?: return
+    if (h in 0..23 && m in 0..59 && s in 0..59) {
+      val cal =
+        Calendar.getInstance().apply {
+          timeInMillis = session.startTimeMillis
+          set(Calendar.HOUR_OF_DAY, h)
+          set(Calendar.MINUTE, m)
+          set(Calendar.SECOND, s)
+        }
+      editedEndMillis = cal.timeInMillis.coerceAtLeast(session.startTimeMillis + 1_000L)
+    }
+  }
+
+  val resultingDurationSeconds =
+    ((editedEndMillis - session.startTimeMillis) / 1_000L).coerceAtLeast(1L)
+  val endFormatted = timeFormat.format(Date(editedEndMillis))
+
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text("Editar Bloque de Estudio") },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          Box(
+            modifier =
+              Modifier.size(12.dp)
+                .clip(CircleShape)
+                .background(subjectColor)
+          )
+          Spacer(modifier = Modifier.width(8.dp))
+          Text(
+            text = subjectName,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+          )
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+          Text(
+            text = "Hora de inicio (fija): $startFormatted",
+            style = MaterialTheme.typography.bodySmall,
+          )
+          Text(
+            text = "Hora de término: $endFormatted",
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold,
+          )
+          Text(
+            text = "Duración resultante: ${formatDurationHms(resultingDurationSeconds)}",
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = FontFamily.Monospace,
+          )
+        }
+
+        Text(
+          text = "Ajustar tiempo de término (HH : MM : SS):",
+          style = MaterialTheme.typography.bodySmall,
+        )
+
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+          OutlinedTextField(
+            value = endHourText,
+            onValueChange = {
+              val filtered = it.filter { ch -> ch.isDigit() }.take(2)
+              endHourText = filtered
+              updateMillisFromText(filtered, endMinuteText, endSecondText)
+            },
+            label = { Text("Hora") },
+            singleLine = true,
+            modifier = Modifier.weight(1f),
+          )
+          OutlinedTextField(
+            value = endMinuteText,
+            onValueChange = {
+              val filtered = it.filter { ch -> ch.isDigit() }.take(2)
+              endMinuteText = filtered
+              updateMillisFromText(endHourText, filtered, endSecondText)
+            },
+            label = { Text("Min") },
+            singleLine = true,
+            modifier = Modifier.weight(1f),
+          )
+          OutlinedTextField(
+            value = endSecondText,
+            onValueChange = {
+              val filtered = it.filter { ch -> ch.isDigit() }.take(2)
+              endSecondText = filtered
+              updateMillisFromText(endHourText, endMinuteText, filtered)
+            },
+            label = { Text("Seg") },
+            singleLine = true,
+            modifier = Modifier.weight(1f),
+          )
+        }
+
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+          TextButton(onClick = { shiftEndMillis(-5 * 60_000L) }) { Text("-5m", fontSize = 12.sp) }
+          TextButton(onClick = { shiftEndMillis(-60_000L) }) { Text("-1m", fontSize = 12.sp) }
+          TextButton(onClick = { shiftEndMillis(-10_000L) }) { Text("-10s", fontSize = 12.sp) }
+          TextButton(onClick = { shiftEndMillis(10_000L) }) { Text("+10s", fontSize = 12.sp) }
+          TextButton(onClick = { shiftEndMillis(60_000L) }) { Text("+1m", fontSize = 12.sp) }
+        }
+
+        OutlinedButton(
+          onClick = onDelete,
+          modifier = Modifier.fillMaxWidth(),
+          colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444)),
+        ) {
+          Icon(
+            imageVector = Icons.Default.DeleteOutline,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+          )
+          Spacer(modifier = Modifier.width(6.dp))
+          Text("Borrar bloque de estudio")
+        }
+      }
+    },
+    confirmButton = {
+      Button(onClick = { onUpdateEndTime(editedEndMillis) }) {
+        Text("Guardar término")
+      }
+    },
+    dismissButton = {
+      TextButton(onClick = onDismiss) { Text("Cancelar") }
+    },
+  )
+}
+
+internal fun findSessionForTenMinuteBlock(
+  sessions: List<StudySession>,
+  hour: Int,
+  blockIdx: Int,
+): StudySession? {
+  val cal = Calendar.getInstance()
+  return sessions.lastOrNull { session ->
+    var cursor = session.startTimeMillis
+    val end = session.endTimeMillis.coerceAtLeast(cursor + 1000L)
+    var matches = false
+    while (cursor <= end) {
+      cal.timeInMillis = cursor
+      val h = cal.get(Calendar.HOUR_OF_DAY)
+      val m = cal.get(Calendar.MINUTE)
+      if (h == hour && (m / 10).coerceIn(0, 5) == blockIdx) {
+        matches = true
+        break
+      }
+      cursor += 60_000L
+    }
+    matches
+  }
 }
 
 internal fun formatDurationHms(totalSeconds: Long): String {

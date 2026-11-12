@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 enum class AppTheme(val displayName: String, val description: String, val isDark: Boolean) {
-  DARK_YPT("Noche YPT", "Oscuro clásico con acento coral", true),
+  DARK_YPT("Noche Coral", "Oscuro clásico con acento coral", true),
   PASTEL_CAT("Gatito Sakura", "Tonos crema y rosa pastel kawaii", false),
   LIGHT_PAPER("Papel Estudio", "Claro minimalista para el día", false),
   MIDNIGHT_CYBER("Medianoche", "Azul profundo con neón cian", true),
@@ -72,7 +72,7 @@ fun defaultSubjects(): List<Subject> =
 
 val SubjectColorPalette =
   listOf(
-    0xFFFF6B4A, // Coral YPT
+    0xFFFF6B4A, // Coral
     0xFF3B82F6, // Azul
     0xFF10B981, // Esmeralda
     0xFFA855F7, // Violeta

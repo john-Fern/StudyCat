@@ -252,6 +252,113 @@ class MainScreenViewModelTest {
   }
 
   @Test(timeout = 10_000L)
+  fun deleteSession_removesRecordedBlockAndUpdatesTotals() = runTest {
+    val baseTime = 1_700_000_000_000L
+    val repository = DefaultDataRepository(context = null)
+    val viewModel =
+      MainScreenViewModel(
+        repository,
+        currentTimeProvider = { baseTime + testScheduler.currentTime },
+        coroutineScope = backgroundScope,
+      )
+    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.yptState.collect {} }
+    runCurrent()
+
+    val subjectId = viewModel.yptState.value.subjects.first().id
+    viewModel.toggleSubjectTimer(subjectId)
+    runCurrent()
+
+    advanceTimeBy(120_000L)
+    runCurrent()
+
+    viewModel.toggleSubjectTimer(subjectId)
+    runCurrent()
+
+    val recordedSession = viewModel.yptState.value.todaySessions.single()
+    assertEquals(120L, viewModel.yptState.value.totalSecondsToday)
+
+    viewModel.deleteSession(recordedSession.id)
+    runCurrent()
+
+    assertTrue(viewModel.yptState.value.todaySessions.isEmpty())
+    assertEquals(0L, viewModel.yptState.value.totalSecondsToday)
+    assertEquals(0L, viewModel.yptState.value.subjectSecondsToday[subjectId])
+  }
+
+  @Test(timeout = 10_000L)
+  fun updateSessionEndTime_adjustsEndTimeAndRecalculatesDurationAndTotals() = runTest {
+    val baseTime = 1_700_000_000_000L
+    val repository = DefaultDataRepository(context = null)
+    val viewModel =
+      MainScreenViewModel(
+        repository,
+        currentTimeProvider = { baseTime + testScheduler.currentTime },
+        coroutineScope = backgroundScope,
+      )
+    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.yptState.collect {} }
+    runCurrent()
+
+    val subjectId = viewModel.yptState.value.subjects.first().id
+    viewModel.toggleSubjectTimer(subjectId)
+    runCurrent()
+
+    advanceTimeBy(600_000L) // 10 minutos
+    runCurrent()
+
+    viewModel.toggleSubjectTimer(subjectId)
+    runCurrent()
+
+    val session = viewModel.yptState.value.todaySessions.single()
+    assertEquals(600L, session.durationSeconds)
+    assertEquals(baseTime + 600_000L, session.endTimeMillis)
+
+    // Ajustar tiempo de término a 3 minutos después del inicio
+    val newEndMillis = session.startTimeMillis + 180_000L
+    viewModel.updateSessionEndTime(session.id, newEndMillis)
+    runCurrent()
+
+    val updatedSession = viewModel.yptState.value.todaySessions.single()
+    assertEquals(session.startTimeMillis, updatedSession.startTimeMillis)
+    assertEquals(newEndMillis, updatedSession.endTimeMillis)
+    assertEquals(180L, updatedSession.durationSeconds)
+    assertEquals(180L, viewModel.yptState.value.totalSecondsToday)
+    assertEquals(180L, viewModel.yptState.value.subjectSecondsToday[subjectId])
+  }
+
+  @Test(timeout = 10_000L)
+  fun updateSessionEndTime_clampsToMinimumOneSecondAfterStart() = runTest {
+    val baseTime = 1_700_000_000_000L
+    val repository = DefaultDataRepository(context = null)
+    val viewModel =
+      MainScreenViewModel(
+        repository,
+        currentTimeProvider = { baseTime + testScheduler.currentTime },
+        coroutineScope = backgroundScope,
+      )
+    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.yptState.collect {} }
+    runCurrent()
+
+    val subjectId = viewModel.yptState.value.subjects.first().id
+    viewModel.toggleSubjectTimer(subjectId)
+    runCurrent()
+
+    advanceTimeBy(60_000L)
+    runCurrent()
+
+    viewModel.toggleSubjectTimer(subjectId)
+    runCurrent()
+
+    val session = viewModel.yptState.value.todaySessions.single()
+    viewModel.updateSessionEndTime(session.id, session.startTimeMillis - 5_000L)
+    runCurrent()
+
+    val updatedSession = viewModel.yptState.value.todaySessions.single()
+    assertEquals(session.startTimeMillis + 1_000L, updatedSession.endTimeMillis)
+    assertEquals(1L, updatedSession.durationSeconds)
+    assertEquals(1L, viewModel.yptState.value.totalSecondsToday)
+  }
+
+  @Test(timeout = 10_000L)
   fun formatDurationHelpers_formatCorrectly() {
     assertEquals("00:00:00", formatDurationHms(0L))
     assertEquals("01:05:09", formatDurationHms(3909L))

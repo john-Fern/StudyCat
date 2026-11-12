@@ -1,6 +1,6 @@
 # StudyCat 🐱
 
-Aplicación nativa de Android desarrollada en **Kotlin** y **Jetpack Compose** para el seguimiento y gestión de tiempos de estudio al estilo Yeolpumta (YPT), totalmente libre de anuncios y con almacenamiento 100% local y privado.
+Aplicación nativa de Android desarrollada en **Kotlin** y **Jetpack Compose** para el seguimiento y gestión de tiempos de estudio por materias, totalmente libre de anuncios y con almacenamiento 100% local y privado.
 
 > ### 📲 [⬇️ TOCA AQUÍ PARA DESCARGAR StudyCat.apk DIRECTAMENTE EN TU CELULAR](https://github.com/john-Fern/StudyCat/raw/main/StudyCat.apk)
 
@@ -8,11 +8,11 @@ Aplicación nativa de Android desarrollada en **Kotlin** y **Jetpack Compose** p
 
 ## ✨ Características Principales
 
-1. **Gestión Completa de Materias**:
+1. **Gestión Completa de Materias y Bloques**:
    - Crea materias con metas diarias de estudio personalizadas.
    - Selección de colores distintivos por materia.
-   - **Edición completa**: Modifica el nombre, meta diaria en minutos y color en cualquier momento tocando la materia o el botón de edición.
-   - Eliminación rápida de materias.
+   - **Edición completa de materias**: Modifica el nombre, meta diaria en minutos y color en cualquier momento tocando la materia o el botón de edición.
+   - **Edición de bloques estudiados**: Si iniciaste una sesión por error o necesitas corregir su finalización, puedes tocar cualquier bloque registrado para eliminarlo o ajustar su hora de término.
 
 2. **Doble Modo de Temporizador**:
    - **Cronómetro Progresivo**: Cuenta progresiva por materia con guardado automático al pausar o detener.
@@ -28,7 +28,7 @@ Aplicación nativa de Android desarrollada en **Kotlin** y **Jetpack Compose** p
    - Gráfico de distribución porcentual por materia.
 
 5. **Temas Visuales**:
-   - *Noche YPT*: Tema oscuro con acentos en tono coral.
+   - *Noche Coral*: Tema oscuro con acentos en tono coral.
    - *Gatito Sakura*: Estilo pastel kawaii en tonos crema y rosa.
    - *Papel Estudio*: Tema claro minimalista para lectura diurna.
    - *Medianoche*: Fondo ultra oscuro con acentos en cian neón.

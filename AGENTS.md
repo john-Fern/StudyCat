@@ -1,6 +1,6 @@
-# StudyCat (`ypt-study-app`) — Guía para Agentes (AGENTS.md)
+# StudyCat — Guía para Agentes (AGENTS.md)
 
-**StudyCat** (`com.studyflow.ypt`) es una aplicación nativa de Android para gestionar tiempos de estudio estilo **YPT (Yeolpumta)**, 100% libre de anuncios y con almacenamiento 100% local/offline. Combina **Cronómetro progresivo por materia**, **Temporizador Pomodoro por fases**, **Modo de Enfoque OLED**, **5 temas visuales** (`StudyCatPalette`) y **estadísticas diarias detalladas** (incluyendo la cuadrícula de bloques de 10 minutos).
+**StudyCat** es una aplicación nativa de Android para gestionar tiempos de estudio por materias, 100% libre de anuncios y con almacenamiento 100% local/offline. Combina **Cronómetro progresivo por materia**, **Temporizador Pomodoro por fases**, **Modo de Enfoque OLED**, **5 temas visuales** (`StudyCatPalette`) y **estadísticas diarias detalladas** (incluyendo la cuadrícula de bloques de 10 minutos).
 
 Antes de modificar cualquier archivo, respeta las reglas globales de XP/KISS/TDD y las convenciones específicas de esta arquitectura.
 
@@ -42,7 +42,7 @@ El proyecto sigue una arquitectura **MVVM ligera con Flujo de Datos Unidireccion
 ## 3. Reglas de Negocio Invariantes
 
 1. **Registro de sesiones:** Tanto en modo Cronómetro como al detener o completar una fase `FOCUS` de Pomodoro (si la duración es `>= 1` segundo), la sesión se guarda automáticamente en `DataRepository.recordSession(...)`. Los descansos (`SHORT_BREAK` / `LONG_BREAK`) no suman tiempo de estudio a las materias.
-2. **Cuadrícula YPT de 10 minutos (`tenMinuteBlocks`):** Divide las 24 horas del día (`0..23`) en 6 bloques de 10 minutos cada una (`0..5`), pintando tanto las sesiones guardadas del día como la sesión activa en curso (`id = "live"`).
+2. **Cuadrícula de 10 minutos (`tenMinuteBlocks`):** Divide las 24 horas del día (`0..23`) en 6 bloques de 10 minutos cada una (`0..5`), pintando tanto las sesiones guardadas del día como la sesión activa en curso (`id = "live"`).
 3. **Modo Pantalla Negra (OLED):** Solo puede activarse cuando `activeTimer.isRunning == true` y permite ahorrar batería en pantallas AMOLED mostrando únicamente información mínima sobre fondo `#000000` puro.
 4. **Idioma de la interfaz:** Todos los textos visibles para el usuario deben estar en **español** claro y consistente con la identidad de **StudyCat**.
 

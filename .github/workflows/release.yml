@@ -58,10 +58,10 @@ jobs:
             ### ✨ Funcionalidades incluidas
             - ⏱️ **Cronómetro Progresivo**: Registro de tiempo de estudio por materia.
             - 🍅 **Temporizador Pomodoro**: Fases de Enfoque, Descanso Corto y Descanso Largo.
-            - ✏️ **Edición de Materias**: Edita nombre, meta diaria y color distintivo en cualquier momento.
+            - ✏️ **Edición de Materias y Bloques**: Edita materias o corrige/elimina bloques de estudio registrados.
             - 🖤 **Modo Pantalla Negra (OLED)**: Máximo ahorro de batería con fondo negro puro `#000000`.
-            - 📊 **Timeline de 10 Minutos**: Visualización estilo YPT dividida en 6 bloques por hora.
-            - 🎨 **5 Temas Visuales**: Noche YPT, Gatito Sakura, Papel Estudio, Medianoche y Bosque Matcha.
+            - 📊 **Timeline de 10 Minutos**: Visualización diaria dividida en 6 bloques por hora.
+            - 🎨 **5 Temas Visuales**: Noche Coral, Gatito Sakura, Papel Estudio, Medianoche y Bosque Matcha.
             - 🔒 **100% Offline y Sin Anuncios**: Tu información se almacena localmente en tu dispositivo.
             
             ### 📲 Instalación
